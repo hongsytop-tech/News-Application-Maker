@@ -40,7 +40,9 @@ jobs:
 
       - name: Build web
         # base-href must match the Pages sub-path (the repo name).
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        # pwa-strategy=none disables the service worker so redeploys never
+        # serve a stale main.dart.js (the cause of "undefined (reading 'init')").
+        run: flutter build web --release --pwa-strategy none --base-href "/${{ github.event.repository.name }}/"
 
       - uses: actions/upload-pages-artifact@v3
         with:
