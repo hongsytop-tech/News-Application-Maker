@@ -56,7 +56,8 @@ class BookmarkService {
 
   // --- Supabase sync -----------------------------------------------------
 
-  String? get _userId => SupabaseService.auth.currentUser?.id;
+  String? get _userId =>
+      SupabaseService.isConfigured ? SupabaseService.auth.currentUser?.id : null;
 
   Future<void> _pushRemote(Bookmark bookmark) async {
     final userId = _userId;

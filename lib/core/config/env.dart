@@ -3,37 +3,37 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// Centralised access to runtime configuration loaded from `.env`.
 ///
 /// Values are read through [dotenv] which is populated in `main()` before the
-/// app starts. Keeping the lookups in one place makes it easy to validate the
-/// configuration and provide sensible fallbacks.
+/// app starts. Lookups are null-tolerant so the app can still boot (e.g. on a
+/// fresh GitHub Pages deploy) before the backend secrets are configured —
+/// features that need the backend degrade gracefully instead of crashing.
 class Env {
   const Env._();
 
-  static String get supabaseUrl => _require('SUPABASE_URL');
+  static String? get supabaseUrl => _maybe('SUPABASE_URL');
 
-  static String get supabaseAnonKey => _require('SUPABASE_ANON_KEY');
+  static String? get supabaseAnonKey => _maybe('SUPABASE_ANON_KEY');
+
+  /// True only when both Supabase credentials are present.
+  static bool get isSupabaseConfigured =>
+      (supabaseUrl?.isNotEmpty ?? false) &&
+      (supabaseAnonKey?.isNotEmpty ?? false);
 
   /// URL of the Supabase Edge Function used as the crawling proxy.
   ///
   /// Falls back to the conventional `${SUPABASE_URL}/functions/v1/crawl-proxy`
-  /// path when `CRAWL_PROXY_URL` is not explicitly provided.
+  /// path. Returns an empty string when Supabase is not configured.
   static String get crawlProxyUrl {
-    final override = dotenv.maybeGet('CRAWL_PROXY_URL');
-    if (override != null && override.trim().isNotEmpty) {
-      return override.trim();
-    }
-    return '$supabaseUrl/functions/v1/crawl-proxy';
+    final override = _maybe('CRAWL_PROXY_URL');
+    if (override != null) return override;
+    final base = supabaseUrl;
+    if (base == null) return '';
+    return '$base/functions/v1/crawl-proxy';
   }
 
-  /// Throws a descriptive error when a required key is missing so that
-  /// misconfiguration is caught early instead of failing deep in the app.
-  static String _require(String key) {
-    final value = dotenv.maybeGet(key);
-    if (value == null || value.trim().isEmpty) {
-      throw StateError(
-        'Missing required environment variable "$key". '
-        'Copy .env.example to .env and fill in the value.',
-      );
-    }
-    return value.trim();
+  /// Returns the trimmed value for [key], or `null` when missing/blank.
+  static String? _maybe(String key) {
+    final value = dotenv.maybeGet(key)?.trim();
+    if (value == null || value.isEmpty) return null;
+    return value;
   }
 }

@@ -21,17 +21,21 @@ class NewsService {
   Uri get _proxyUri => Uri.parse(Env.crawlProxyUrl);
 
   Map<String, String> get _headers {
-    final token =
-        SupabaseService.auth.currentSession?.accessToken ?? Env.supabaseAnonKey;
+    final anon = Env.supabaseAnonKey ?? '';
+    final token = (SupabaseService.isConfigured
+            ? SupabaseService.auth.currentSession?.accessToken
+            : null) ??
+        anon;
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
-      'apikey': Env.supabaseAnonKey,
+      'apikey': anon,
     };
   }
 
   /// Fetches and parses the RSS/Atom feed for [source] via the proxy.
   Future<List<NewsArticle>> fetchFeed(NewsSource source) async {
+    _ensureProxyConfigured();
     final response = await _client.post(
       _proxyUri,
       headers: _headers,
@@ -78,6 +82,7 @@ class NewsService {
 
   /// Extracts the readable full-text content of [article] via the proxy.
   Future<NewsArticle> fetchArticleContent(NewsArticle article) async {
+    _ensureProxyConfigured();
     final response = await _client.post(
       _proxyUri,
       headers: _headers,
@@ -87,6 +92,15 @@ class NewsService {
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     return article.copyWith(content: body['content'] as String?);
+  }
+
+  void _ensureProxyConfigured() {
+    if (Env.crawlProxyUrl.isEmpty) {
+      throw NewsServiceException(
+        'The crawl proxy is not configured. Set SUPABASE_URL (and deploy the '
+        'crawl-proxy Edge Function) to load the feed.',
+      );
+    }
   }
 
   void _ensureOk(http.Response response) {
