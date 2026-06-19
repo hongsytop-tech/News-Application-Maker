@@ -32,6 +32,7 @@ class Env {
 
   /// Returns the trimmed value for [key], or `null` when missing/blank.
   static String? _maybe(String key) {
+    if (!dotenv.isInitialized) return null;
     final value = dotenv.maybeGet(key)?.trim();
     if (value == null || value.isEmpty) return null;
     return value;

@@ -18,6 +18,21 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <style>
+    #boot {
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; flex-direction: column; gap: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1565C0;
+    }
+    #boot .spin {
+      width: 36px; height: 36px; border: 4px solid #d6e4f5;
+      border-top-color: #1565C0; border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <div id="boot"><div class="spin"></div><div>News 로딩 중…</div></div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
