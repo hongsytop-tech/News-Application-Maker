@@ -17,7 +17,10 @@ dependencies:
   go_router: ^14.2.0
 
   # Backend / Auth / Sync
-  supabase_flutter: ^2.5.6
+  # Capped below 2.15.0: that version pulls in `passkeys`, whose `passkeys_web`
+  # plugin crashes Flutter web at startup (web_plugin_registrant → undefined
+  # 'init'). We don't use passkeys; 2.14.x has the same auth/functions/DB API.
+  supabase_flutter: ">=2.5.6 <2.15.0"
 
   # Local persistence
   shared_preferences: ^2.2.3
