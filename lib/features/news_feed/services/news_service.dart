@@ -50,6 +50,7 @@ class NewsService {
         .map((e) => NewsArticle.fromJson({
               ...e.cast<String, dynamic>(),
               'source_name': source.name,
+              'category_id': source.categoryId,
             }))
         .toList();
   }

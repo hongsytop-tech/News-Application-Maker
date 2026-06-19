@@ -1,52 +1,52 @@
-/// A news source the feed pulls articles from (typically an RSS/Atom feed).
+import 'package:news_application_maker/features/news_feed/models/news_category.dart';
+
+/// A news source: a single RSS/Atom feed scoped to one category + region.
+///
+/// Sources are generated from the [NewsCategory] taxonomy crossed with
+/// [NewsRegion] using Google News topic feeds, which gives consistent
+/// category coverage across both domestic (Korean) and international content.
 class NewsSource {
   const NewsSource({
     required this.id,
     required this.name,
     required this.feedUrl,
-    this.category = 'General',
+    required this.categoryId,
+    required this.region,
   });
 
   final String id;
   final String name;
   final String feedUrl;
-  final String category;
+  final String categoryId;
+  final NewsRegion region;
 
-  factory NewsSource.fromJson(Map<String, dynamic> json) {
+  static String _feedUrl(NewsCategory c, NewsRegion r) =>
+      'https://news.google.com/rss/headlines/section/topic/'
+      '${c.googleTopic}?${r.query}';
+
+  static NewsSource forCategory(NewsCategory c, NewsRegion r) {
     return NewsSource(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      feedUrl: json['feed_url'] as String,
-      category: (json['category'] as String?) ?? 'General',
+      id: '${c.id}-${r.name}',
+      name: '${c.label} · ${r.label}',
+      feedUrl: _feedUrl(c, r),
+      categoryId: c.id,
+      region: r,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'feed_url': feedUrl,
-        'category': category,
-      };
+  /// Every (category × region) source.
+  static List<NewsSource> get all => [
+        for (final c in NewsCategory.all)
+          for (final r in NewsRegion.values) forCategory(c, r),
+      ];
 
-  /// Curated default sources so the feed shows content out of the box.
-  static const defaults = <NewsSource>[
-    NewsSource(
-      id: 'bbc-world',
-      name: 'BBC World',
-      feedUrl: 'https://feeds.bbci.co.uk/news/world/rss.xml',
-      category: 'World',
-    ),
-    NewsSource(
-      id: 'hn-frontpage',
-      name: 'Hacker News',
-      feedUrl: 'https://hnrss.org/frontpage',
-      category: 'Tech',
-    ),
-    NewsSource(
-      id: 'verge',
-      name: 'The Verge',
-      feedUrl: 'https://www.theverge.com/rss/index.xml',
-      category: 'Tech',
-    ),
-  ];
+  /// Sources for one category, optionally filtered to a single region.
+  static List<NewsSource> forCategoryId(String categoryId, {NewsRegion? region}) {
+    final c = NewsCategory.byId(categoryId);
+    if (c == null) return const [];
+    return [
+      for (final r in NewsRegion.values)
+        if (region == null || region == r) forCategory(c, r),
+    ];
+  }
 }

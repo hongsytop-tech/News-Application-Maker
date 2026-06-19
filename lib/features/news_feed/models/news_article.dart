@@ -8,6 +8,7 @@ class NewsArticle {
     this.summary = '',
     this.imageUrl,
     this.sourceName = '',
+    this.categoryId = '',
     this.author,
     this.publishedAt,
     this.content,
@@ -18,6 +19,9 @@ class NewsArticle {
   final String summary;
   final String? imageUrl;
   final String sourceName;
+
+  /// Category this article was surfaced under (see [NewsCategory]).
+  final String categoryId;
   final String? author;
   final DateTime? publishedAt;
 
@@ -33,6 +37,7 @@ class NewsArticle {
       summary: (json['summary'] as String?) ?? '',
       imageUrl: json['image_url'] as String?,
       sourceName: (json['source_name'] as String?) ?? '',
+      categoryId: (json['category_id'] as String?) ?? '',
       author: json['author'] as String?,
       publishedAt: _parseDate(json['published_at']),
       content: json['content'] as String?,
@@ -45,6 +50,7 @@ class NewsArticle {
         'summary': summary,
         'image_url': imageUrl,
         'source_name': sourceName,
+        'category_id': categoryId,
         'author': author,
         'published_at': publishedAt?.toIso8601String(),
         'content': content,
@@ -57,6 +63,7 @@ class NewsArticle {
       summary: summary,
       imageUrl: imageUrl,
       sourceName: sourceName,
+      categoryId: categoryId,
       author: author,
       publishedAt: publishedAt,
       content: content ?? this.content,

@@ -5,8 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:news_application_maker/core/router/app_router.dart';
 import 'package:news_application_maker/features/auth/providers/auth_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
+import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/news_feed/providers/news_feed_provider.dart';
 import 'package:news_application_maker/features/news_feed/widgets/article_card.dart';
+import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
+import 'package:news_application_maker/features/preferences/providers/settings_provider.dart';
+import 'package:news_application_maker/features/preferences/services/event_service.dart';
 
 class NewsFeedScreen extends ConsumerWidget {
   const NewsFeedScreen({super.key});
@@ -20,6 +24,11 @@ class NewsFeedScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('News'),
         actions: [
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.tune),
+            onPressed: () => context.go(Routes.settings),
+          ),
           if (user == null)
             TextButton(
               onPressed: () => context.go(Routes.login),
@@ -33,6 +42,7 @@ class NewsFeedScreen extends ConsumerWidget {
                   ref.read(authControllerProvider.notifier).signOut(),
             ),
         ],
+        bottom: const _FeedControls(),
       ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(newsFeedProvider.future),
@@ -49,13 +59,89 @@ class NewsFeedScreen extends ConsumerWidget {
   }
 }
 
-class _FeedList extends StatelessWidget {
+/// Category chips + region filter shown under the app bar.
+class _FeedControls extends ConsumerWidget implements PreferredSizeWidget {
+  const _FeedControls();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(96);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories = ref.watch(enabledCategoriesProvider);
+    final selected = ref.watch(effectiveCategoryProvider);
+    final region = ref.watch(regionFilterProvider);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
+              for (final c in categories)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(c.label),
+                    selected: c.id == selected,
+                    onSelected: (_) =>
+                        ref.read(selectedCategoryProvider.notifier).state = c.id,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 44,
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              _RegionChip(label: '전체', value: null, current: region),
+              for (final r in NewsRegion.values)
+                _RegionChip(label: r.label, value: r, current: region),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RegionChip extends ConsumerWidget {
+  const _RegionChip({
+    required this.label,
+    required this.value,
+    required this.current,
+  });
+
+  final String label;
+  final NewsRegion? value;
+  final NewsRegion? current;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: value == current,
+        onSelected: (_) =>
+            ref.read(regionFilterProvider.notifier).state = value,
+      ),
+    );
+  }
+}
+
+class _FeedList extends ConsumerWidget {
   const _FeedList({required this.articles});
 
   final List<NewsArticle> articles;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (articles.isEmpty) {
       return ListView(
         children: const [
@@ -72,8 +158,13 @@ class _FeedList extends StatelessWidget {
         final article = articles[index];
         return ArticleCard(
           article: article,
-          onTap: () => context.go('${Routes.feed}/${Routes.article}',
-              extra: article),
+          onTap: () {
+            // Opening an article is a positive preference signal.
+            ref
+                .read(recommendationProvider.notifier)
+                .record(EventType.open, article);
+            context.go('${Routes.feed}/${Routes.article}', extra: article);
+          },
         );
       },
     );

@@ -9,6 +9,7 @@ import 'package:news_application_maker/features/bookmarks/screens/bookmarks_scre
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/screens/article_detail_screen.dart';
 import 'package:news_application_maker/features/news_feed/screens/news_feed_screen.dart';
+import 'package:news_application_maker/features/preferences/screens/settings_screen.dart';
 import 'package:news_application_maker/features/shell/home_shell.dart';
 
 /// Named route paths used throughout the app.
@@ -17,6 +18,7 @@ class Routes {
   static const login = '/login';
   static const feed = '/feed';
   static const bookmarks = '/bookmarks';
+  static const settings = '/settings';
   static const article = 'article'; // sub-route of /feed
 }
 
@@ -41,6 +43,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.login,
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: Routes.settings,
+        builder: (context, state) => const SettingsScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),

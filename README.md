@@ -34,13 +34,19 @@ lib/
     theme/app_theme.dart
     router/                     # GoRouter + auth-aware redirects
   features/
-    auth/      {models,services,providers,screens}
-    news_feed/ {models,services,providers,screens,widgets}
-    bookmarks/ {models,services,providers,screens,widgets}
-    shell/     home_shell.dart  # bottom navigation
+    auth/        {models,services,providers,screens}
+    news_feed/   {models,services,providers,screens,widgets}  # categories + region
+    bookmarks/   {models,services,providers,screens,widgets}
+    preferences/ {models,services,providers,screens}          # settings + signals
+    ai/          {services,providers}                          # Claude summaries/taste
+    shell/       home_shell.dart  # bottom navigation
 supabase/
-  functions/crawl-proxy/index.ts
-  migrations/0001_init.sql
+  functions/crawl-proxy/index.ts   # CORS bypass + Postgres cache
+  functions/ai-summarize/index.ts  # Claude Haiku 3-line summary
+  functions/ai-taste/index.ts      # Claude Sonnet taste profile
+  functions/_shared/claude.ts      # Messages API client
+  migrations/0001_init.sql         # bookmarks, crawl_cache
+  migrations/0002_news_ai.sql      # user_events, user_taste, user_settings
   config.toml
 .github/workflows/             # deploy-web.yml, release-apk.yml
 .devcontainer/                  # Flutter SDK provisioning
@@ -77,11 +83,28 @@ supabase/
 
    Or open the repo in the dev container, which installs Flutter automatically.
 
+## Features
+
+- **Categories** — all topics (국내/세계/경제/기술/과학/건강/스포츠/연예) are created up
+  front, mixing domestic (Korean) and international (English) sources via Google
+  News topic feeds. Pick which categories to see in **Settings**; choose a region
+  filter (전체/한국/해외) in the feed.
+- **Title + summary first** — the feed lists headline + summary + thumbnail; tap
+  through to the detail screen, then **원문 보기** opens the source.
+- **Auth + sync** — email/password sign-up & login (Supabase). Bookmarks and the
+  category selection are stored locally and synced to the account across devices.
+- **AI (Claude)** — on-demand 3-line article summaries, and a learned **taste
+  profile** that re-ranks the feed. Local interaction signals re-rank instantly;
+  the AI profile refines it. All Claude calls run inside Edge Functions.
+
 ## Supabase backend
 
 ```bash
-supabase db push                       # apply migrations/0001_init.sql
-supabase functions deploy crawl-proxy  # deploy the crawling proxy
+supabase db push                          # apply migrations 0001 + 0002
+supabase functions deploy crawl-proxy     # crawling proxy
+supabase functions deploy ai-summarize    # Claude summaries
+supabase functions deploy ai-taste        # Claude taste profiling
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...   # server-side only
 ```
 
 The `crawl-proxy` function uses the service role key (set automatically in the

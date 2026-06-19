@@ -5,3 +5,11 @@ project_id = "news-application-maker"
 # The app sends the user's JWT (or the anon key) in the Authorization header.
 # Keep verification on so only valid Supabase tokens can invoke the proxy.
 verify_jwt = true
+
+[functions.ai-summarize]
+# Summaries can be requested while browsing signed-out (anon key allowed).
+verify_jwt = true
+
+[functions.ai-taste]
+# Taste profiling requires a signed-in user (identified from the JWT).
+verify_jwt = true
