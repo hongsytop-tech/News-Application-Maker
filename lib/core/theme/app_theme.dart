@@ -28,7 +28,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         clipBehavior: Clip.antiAlias,
         elevation: 0,
         margin: EdgeInsets.zero,
