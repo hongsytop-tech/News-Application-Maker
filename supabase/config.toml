@@ -1,0 +1,7 @@
+# Supabase local/project configuration.
+project_id = "news-application-maker"
+
+[functions.crawl-proxy]
+# The app sends the user's JWT (or the anon key) in the Authorization header.
+# Keep verification on so only valid Supabase tokens can invoke the proxy.
+verify_jwt = true

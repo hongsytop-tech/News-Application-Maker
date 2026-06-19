@@ -1,0 +1,46 @@
+name: news_application_maker
+description: "News feed & bookmark app built with Flutter, Riverpod and Supabase."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Routing
+  go_router: ^14.2.0
+
+  # Backend / Auth / Sync
+  supabase_flutter: ^2.5.6
+
+  # Local persistence
+  shared_preferences: ^2.2.3
+
+  # Config
+  flutter_dotenv: ^5.1.0
+
+  # Networking & parsing (client-side fallback)
+  http: ^1.2.1
+  html: ^0.15.4
+
+  # UI helpers
+  cached_network_image: ^3.3.1
+  url_launcher: ^6.3.0
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
