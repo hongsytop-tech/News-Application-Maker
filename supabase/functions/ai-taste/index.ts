@@ -1,17 +1,15 @@
 // Supabase Edge Function: ai-taste
 //
-// Builds/refreshes the signed-in user's taste profile from their recent
-// interaction events using Claude (Sonnet), then stores it in `user_taste`.
-// The user is identified from the JWT in the Authorization header.
+// Builds the signed-in user's taste profile from recent interaction events with
+// Claude (Sonnet) and stores it in `user_taste`. The user is identified from
+// the JWT in the Authorization header. Zero external imports (uses the REST and
+// Auth APIs via fetch) so the dashboard bundler never fetches a module.
 //
-// Request body: {} (no params). Required function secret: ANTHROPIC_API_KEY.
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Request body: {} . Deploy with "Verify JWT" ON. Required secret: ANTHROPIC_API_KEY.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -22,7 +20,24 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-// deno-lint-ignore no-explicit-any
+const SUPA = Deno.env.get('SUPABASE_URL')!;
+const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
+const SROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const restHeaders = {
+  apikey: SROLE,
+  Authorization: `Bearer ${SROLE}`,
+  'content-type': 'application/json',
+};
+
+async function getUserId(authHeader: string): Promise<string | null> {
+  const r = await fetch(`${SUPA}/auth/v1/user`, {
+    headers: { apikey: ANON, Authorization: authHeader },
+  });
+  if (!r.ok) return null;
+  const u = await r.json();
+  return u?.id ?? null;
+}
+
 async function claude(prompt: string): Promise<string> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured.');
@@ -53,38 +68,35 @@ async function claude(prompt: string): Promise<string> {
     .filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
 }
 
-const admin = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-);
+async function saveProfile(userId: string, profile: unknown) {
+  await fetch(`${SUPA}/rest/v1/user_taste?on_conflict=user_id`, {
+    method: 'POST',
+    headers: { ...restHeaders, Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({
+      user_id: userId,
+      profile,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const userClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: userData } = await userClient.auth.getUser();
-    const user = userData.user;
-    if (!user) return json({ error: 'Not authenticated' }, 401);
+    const userId = await getUserId(req.headers.get('Authorization') ?? '');
+    if (!userId) return json({ error: 'Not authenticated' }, 401);
 
-    const { data: events } = await admin
-      .from('user_events')
-      .select('type, category, source_name, created_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(200);
+    const eventsRes = await fetch(
+      `${SUPA}/rest/v1/user_events?user_id=eq.${userId}&select=type,category,source_name,created_at&order=created_at.desc&limit=200`,
+      { headers: restHeaders },
+    );
+    const events = eventsRes.ok ? await eventsRes.json() : [];
 
     if (!events || events.length === 0) {
       const empty = { category_weights: {}, keywords: [], summary: '' };
-      await admin.from('user_taste').upsert({
-        user_id: user.id, profile: empty, updated_at: new Date().toISOString(),
-      });
+      await saveProfile(userId, empty);
       return json({ profile: empty });
     }
 
@@ -95,10 +107,7 @@ Deno.serve(async (req) => {
     } catch (_) {
       profile = { category_weights: {}, keywords: [], summary: raw.slice(0, 200) };
     }
-
-    await admin.from('user_taste').upsert({
-      user_id: user.id, profile, updated_at: new Date().toISOString(),
-    });
+    await saveProfile(userId, profile);
     return json({ profile });
   } catch (err) {
     return json({ error: String(err) }, 502);
