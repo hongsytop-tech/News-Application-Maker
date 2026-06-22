@@ -16,12 +16,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
   bool _isSignUp = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmController.dispose();
     super.dispose();
   }
 
@@ -87,12 +89,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: true,
-                    autofillHints: const [AutofillHints.password],
+                    autofillHints: _isSignUp
+                        ? const [AutofillHints.newPassword]
+                        : const [AutofillHints.password],
                     decoration: const InputDecoration(labelText: 'Password'),
                     validator: (v) => (v == null || v.length < 6)
                         ? 'At least 6 characters'
                         : null,
                   ),
+                  // Confirm-password field, shown only when registering.
+                  if (_isSignUp) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _confirmController,
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      decoration:
+                          const InputDecoration(labelText: 'Confirm password'),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Re-enter your password';
+                        }
+                        if (v != _passwordController.text) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: isLoading ? null : _submit,
@@ -107,7 +131,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   TextButton(
                     onPressed: isLoading
                         ? null
-                        : () => setState(() => _isSignUp = !_isSignUp),
+                        : () => setState(() {
+                              _isSignUp = !_isSignUp;
+                              _confirmController.clear();
+                            }),
                     child: Text(_isSignUp
                         ? 'Have an account? Sign in'
                         : 'Need an account? Sign up'),
