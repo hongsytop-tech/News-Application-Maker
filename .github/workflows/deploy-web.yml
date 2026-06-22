@@ -51,6 +51,19 @@ jobs:
             "${{ github.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > build/web/version-info.json
 
+      - name: Cache-bust entry scripts
+        # GitHub Pages serves main.dart.js with a 10-min HTTP cache and the
+        # filename never changes, so a reload after a redeploy can keep running
+        # the stale bundle (and thus the old BUILD_ID). Append a per-deploy
+        # query to the entry scripts so each deploy has unique, uncacheable URLs.
+        run: |
+          SHA=${{ github.sha }}
+          sed -i "s#flutter_bootstrap.js#flutter_bootstrap.js?v=${SHA}#g" build/web/index.html
+          sed -i "s#main.dart.js#main.dart.js?v=${SHA}#g" build/web/index.html
+          if [ -f build/web/flutter_bootstrap.js ]; then
+            sed -i "s#\"main.dart.js\"#\"main.dart.js?v=${SHA}\"#g" build/web/flutter_bootstrap.js
+          fi
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
