@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:news_application_maker/core/utils/lang.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/bookmarks/providers/bookmark_provider.dart';
@@ -51,6 +52,21 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
     final theme = Theme.of(context);
     final bookmarked = ref.watch(isBookmarkedProvider(article.url));
 
+    // Foreign (non-Korean) articles are translated to Korean on the fly.
+    final translate = (ref.read(aiServiceProvider).isAvailable &&
+            needsKoreanTranslation(article.title))
+        ? ref.watch(articleTranslationProvider(article))
+        : null;
+    final displayTitle = translate?.maybeWhen(
+          data: (t) => t.title.isNotEmpty ? t.title : article.title,
+          orElse: () => article.title,
+        ) ??
+        article.title;
+    final translatedSummary = translate?.maybeWhen(
+      data: (t) => t.summary,
+      orElse: () => null,
+    );
+
     return Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,7 +99,7 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          article.title,
+                          displayTitle,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleMedium,
@@ -94,6 +110,13 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
                           style: theme.textTheme.bodySmall
                               ?.copyWith(color: theme.colorScheme.outline),
                         ),
+                        if (translate != null) ...[
+                          const SizedBox(height: 6),
+                          _TranslatedSummary(
+                            state: translate,
+                            text: translatedSummary,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -149,6 +172,44 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
       parts.add(DateFormat.MMMd().add_jm().format(a.publishedAt!.toLocal()));
     }
     return parts.join(' · ');
+  }
+}
+
+/// Korean translation of a foreign article's summary, shown inline in the list.
+/// While translating, an "AI 번역 중…" hint is shown; on error it stays quiet
+/// (the original English title is already visible).
+class _TranslatedSummary extends StatelessWidget {
+  const _TranslatedSummary({required this.state, required this.text});
+
+  final AsyncValue<({String title, String summary})> state;
+  final String? text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hintStyle = theme.textTheme.bodySmall
+        ?.copyWith(color: theme.colorScheme.outline);
+
+    return state.when(
+      loading: () => Row(children: [
+        const SizedBox(
+            width: 12, height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2)),
+        const SizedBox(width: 8),
+        Text('AI 번역 중…', style: hintStyle),
+      ]),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (_) {
+        final summary = text ?? '';
+        if (summary.isEmpty) return const SizedBox.shrink();
+        return Text(
+          summary,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium,
+        );
+      },
+    );
   }
 }
 

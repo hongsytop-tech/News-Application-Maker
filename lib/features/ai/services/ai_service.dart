@@ -27,6 +27,27 @@ class AiService {
     throw const AiException('Could not generate a summary.');
   }
 
+  /// Translates a foreign [article]'s title and summary into Korean (cached
+  /// server-side). Returns the translated pair.
+  Future<({String title, String summary})> translate(NewsArticle article) async {
+    final res = await SupabaseService.client.functions.invoke(
+      'ai-translate',
+      body: {
+        'url': article.url,
+        'title': article.title,
+        'summary': article.summary,
+      },
+    );
+    final data = res.data;
+    if (data is Map && data['title'] is String) {
+      return (
+        title: data['title'] as String,
+        summary: (data['summary'] as String?) ?? '',
+      );
+    }
+    throw const AiException('Could not translate this article.');
+  }
+
   /// Rebuilds the signed-in user's taste profile from recent interactions.
   /// Returns the profile map: { category_weights, keywords, summary }.
   Future<Map<String, dynamic>> refreshTaste() async {

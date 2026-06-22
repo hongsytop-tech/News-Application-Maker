@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:news_application_maker/core/utils/lang.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/bookmarks/providers/bookmark_provider.dart';
@@ -38,6 +39,17 @@ class ArticleDetailScreen extends ConsumerWidget {
     final bookmarked = ref.watch(isBookmarkedProvider(article.url));
     final fullArticle = ref.watch(articleContentProvider(article));
 
+    // Translate foreign headlines to Korean (shares the list's cached call).
+    final translate = (ref.read(aiServiceProvider).isAvailable &&
+            needsKoreanTranslation(article.title))
+        ? ref.watch(articleTranslationProvider(article))
+        : null;
+    final title = translate?.maybeWhen(
+          data: (t) => t.title.isNotEmpty ? t.title : article.title,
+          orElse: () => article.title,
+        ) ??
+        article.title;
+
     return Scaffold(
       appBar: AppBar(
         actions: [
@@ -56,7 +68,7 @@ class ArticleDetailScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(article.title, style: theme.textTheme.headlineSmall),
+          Text(title, style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
           if (article.sourceName.isNotEmpty)
             Text(

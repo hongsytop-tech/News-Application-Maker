@@ -11,6 +11,12 @@ final articleSummaryProvider =
   return ref.watch(aiServiceProvider).summarize(article);
 });
 
+/// Lazily translates a foreign article's title + summary into Korean.
+final articleTranslationProvider = FutureProvider.autoDispose
+    .family<({String title, String summary}), NewsArticle>((ref, article) async {
+  return ref.watch(aiServiceProvider).translate(article);
+});
+
 /// The user's learned taste profile. `null` until first built.
 class TasteController extends StateNotifier<AsyncValue<Map<String, dynamic>?>> {
   TasteController(this._service) : super(const AsyncData(null));
