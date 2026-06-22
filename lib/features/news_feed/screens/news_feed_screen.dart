@@ -24,22 +24,10 @@ class NewsFeedScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('News'),
         actions: [
-          IconButton(
-            tooltip: 'Settings',
-            icon: const Icon(Icons.tune),
-            onPressed: () => context.go(Routes.settings),
-          ),
           if (user == null)
             TextButton(
               onPressed: () => context.go(Routes.login),
-              child: const Text('Sign in'),
-            )
-          else
-            IconButton(
-              tooltip: 'Sign out',
-              icon: const Icon(Icons.logout),
-              onPressed: () =>
-                  ref.read(authControllerProvider.notifier).signOut(),
+              child: const Text('로그인'),
             ),
         ],
         bottom: const _FeedControls(),

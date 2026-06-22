@@ -11,13 +11,15 @@ class HomeShell extends StatelessWidget {
   final Widget child;
 
   static const _destinations = [
-    (path: Routes.feed, icon: Icons.article_outlined, selected: Icons.article, label: 'Feed'),
-    (path: Routes.bookmarks, icon: Icons.bookmark_outline, selected: Icons.bookmark, label: 'Bookmarks'),
+    (path: Routes.feed, icon: Icons.article_outlined, selected: Icons.article, label: '피드'),
+    (path: Routes.bookmarks, icon: Icons.bookmark_outline, selected: Icons.bookmark, label: '북마크'),
+    (path: Routes.mypage, icon: Icons.person_outline, selected: Icons.person, label: '마이페이지'),
   ];
 
   int _indexFor(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith(Routes.bookmarks)) return 1;
+    if (location.startsWith(Routes.mypage)) return 2;
     return 0;
   }
 

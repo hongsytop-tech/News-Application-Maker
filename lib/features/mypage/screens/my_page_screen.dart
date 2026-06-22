@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,9 +8,14 @@ import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/auth/providers/auth_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/preferences/providers/settings_provider.dart';
+import 'package:news_application_maker/features/update/providers/update_provider.dart';
+import 'package:news_application_maker/features/update/services/update_service.dart';
 
-class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+/// "My Page" — the account/preferences hub shown as a bottom-nav tab.
+/// Mirrors the self-development app's structure (account, settings, AI, app
+/// version/update), with news-specific content.
+class MyPageScreen extends ConsumerWidget {
+  const MyPageScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,19 +23,10 @@ class SettingsScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('마이페이지')),
       body: ListView(
         children: [
-          const _SectionHeader('보고 싶은 카테고리'),
-          for (final c in NewsCategory.all)
-            SwitchListTile(
-              title: Text(c.label),
-              value: settings.isEnabled(c.id),
-              onChanged: (_) =>
-                  ref.read(settingsProvider.notifier).toggleCategory(c.id),
-            ),
-          const Divider(),
-
+          // --- Account ---
           const _SectionHeader('계정'),
           if (user == null)
             ListTile(
@@ -52,10 +49,103 @@ class SettingsScreen extends ConsumerWidget {
           ],
           const Divider(),
 
+          // --- Categories ---
+          const _SectionHeader('보고 싶은 카테고리'),
+          for (final c in NewsCategory.all)
+            SwitchListTile(
+              title: Text(c.label),
+              value: settings.isEnabled(c.id),
+              onChanged: (_) =>
+                  ref.read(settingsProvider.notifier).toggleCategory(c.id),
+            ),
+          const Divider(),
+
+          // --- AI taste ---
           const _SectionHeader('AI 취향 학습'),
           const _TasteSection(),
+          const Divider(),
+
+          // --- App version / update ---
+          const _SectionHeader('앱 버전'),
+          const _UpdateSection(),
+          const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+}
+
+class _UpdateSection extends ConsumerWidget {
+  const _UpdateSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(updateControllerProvider);
+    final notifier = ref.read(updateControllerProvider.notifier);
+
+    // On native platforms there's nothing to self-update; show the build only.
+    if (!kIsWeb) {
+      return ListTile(
+        leading: const Icon(Icons.info_outline),
+        title: const Text('현재 버전'),
+        subtitle: Text(UpdateService.currentBuild),
+      );
+    }
+
+    return state.when(
+      loading: () => const ListTile(
+        leading: SizedBox(
+          width: 24, height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2)),
+        title: Text('업데이트 확인 중…'),
+      ),
+      error: (e, _) => ListTile(
+        leading: const Icon(Icons.error_outline),
+        title: const Text('업데이트 확인 실패'),
+        subtitle: Text('$e'),
+        trailing: TextButton(
+          onPressed: notifier.check,
+          child: const Text('다시'),
+        ),
+      ),
+      data: (status) {
+        if (status == null) {
+          return ListTile(
+            leading: const Icon(Icons.system_update),
+            title: const Text('업데이트 확인'),
+            subtitle: Text('현재 버전 ${UpdateService.currentBuild == 'dev'
+                ? '(개발 빌드)'
+                : UpdateStatus(current: UpdateService.currentBuild).currentShort}'),
+            trailing: FilledButton.tonal(
+              onPressed: notifier.check,
+              child: const Text('확인'),
+            ),
+          );
+        }
+        if (status.available) {
+          return Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: ListTile(
+              leading: const Icon(Icons.new_releases),
+              title: const Text('새 버전이 있습니다'),
+              subtitle: Text('${status.currentShort} → ${status.latestShort}'),
+              trailing: FilledButton(
+                onPressed: notifier.applyUpdate,
+                child: const Text('지금 업데이트'),
+              ),
+            ),
+          );
+        }
+        return ListTile(
+          leading: const Icon(Icons.check_circle, color: Colors.green),
+          title: const Text('최신 버전입니다'),
+          subtitle: Text(status.currentShort),
+          trailing: TextButton(
+            onPressed: notifier.check,
+            child: const Text('새로고침'),
+          ),
+        );
+      },
     );
   }
 }

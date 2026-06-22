@@ -41,9 +41,15 @@ jobs:
       - name: Build web
         # base-href must match the Pages sub-path (the repo name).
         # pwa-strategy=none disables the service worker so redeploys never
-        # serve a stale main.dart.js. --source-maps makes runtime stack traces
-        # resolve to Dart files in DevTools for diagnosis.
-        run: flutter build web --release --source-maps --pwa-strategy none --base-href "/${{ github.event.repository.name }}/"
+        # serve a stale main.dart.js. BUILD_ID is compiled in so the running
+        # app can compare itself against the deployed version-info.json.
+        run: |
+          flutter build web --release --source-maps --pwa-strategy none \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=BUILD_ID=${{ github.sha }}
+          printf '{"build":"%s","time":"%s"}\n' \
+            "${{ github.sha }}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > build/web/version-info.json
 
       - uses: actions/upload-pages-artifact@v3
         with:
