@@ -65,6 +65,17 @@ class MyPageScreen extends ConsumerWidget {
           const _TasteSection(),
           const Divider(),
 
+          // --- Trash ---
+          const _SectionHeader('보관함'),
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: const Text('휴지통'),
+            subtitle: const Text('피드에서 삭제한 기사를 보고 복원합니다.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.trash),
+          ),
+          const Divider(),
+
           // --- App version / update ---
           const _SectionHeader('앱 버전'),
           const _UpdateSection(),

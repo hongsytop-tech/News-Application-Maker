@@ -11,6 +11,7 @@ import 'package:news_application_maker/features/news_feed/screens/article_detail
 import 'package:news_application_maker/features/news_feed/screens/news_feed_screen.dart';
 import 'package:news_application_maker/features/mypage/screens/my_page_screen.dart';
 import 'package:news_application_maker/features/shell/home_shell.dart';
+import 'package:news_application_maker/features/trash/screens/trash_screen.dart';
 
 /// Named route paths used throughout the app.
 class Routes {
@@ -19,6 +20,7 @@ class Routes {
   static const feed = '/feed';
   static const bookmarks = '/bookmarks';
   static const mypage = '/mypage';
+  static const trash = '/trash';
   static const article = 'article'; // sub-route of /feed
 }
 
@@ -43,6 +45,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.login,
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: Routes.trash,
+        builder: (context, state) => const TrashScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),

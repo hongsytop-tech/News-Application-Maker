@@ -11,6 +11,7 @@ import 'package:news_application_maker/features/news_feed/widgets/article_card.d
 import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/providers/settings_provider.dart';
 import 'package:news_application_maker/features/preferences/services/event_service.dart';
+import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
 class NewsFeedScreen extends ConsumerWidget {
   const NewsFeedScreen({super.key});
@@ -129,7 +130,12 @@ class _FeedList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (articles.isEmpty) {
+    // Hide articles the user moved to the trash.
+    final trashed = ref.watch(trashedUrlsProvider);
+    final visible =
+        articles.where((a) => !trashed.contains(a.url)).toList();
+
+    if (visible.isEmpty) {
       return ListView(
         children: const [
           SizedBox(height: 120),
@@ -139,10 +145,10 @@ class _FeedList extends ConsumerWidget {
     }
     return ListView.separated(
       padding: const EdgeInsets.all(12),
-      itemCount: articles.length,
+      itemCount: visible.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        final article = articles[index];
+        final article = visible[index];
         return ArticleCard(
           article: article,
           onTap: () {
