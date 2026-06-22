@@ -1,19 +1,15 @@
 // Supabase Edge Function: crawl-proxy
 //
-// Server-side crawling proxy used by the Flutter app:
-//   1. CORS bypass — browsers can't fetch arbitrary feeds/pages directly.
-//   2. Postgres caching — responses are cached in `crawl_cache`.
-//
-// RSS/Atom is parsed here with no external library so the dashboard bundler
-// never has to fetch a third-party module (which can time out).
+// Server-side crawling proxy (CORS bypass) for the Flutter web app.
+// Zero external imports so the dashboard bundler never fetches a module and
+// can never time out. Parses RSS/Atom inline. (Postgres caching was removed to
+// keep this dependency-free; feeds are fetched live.)
 //
 // Request body (POST, JSON):
 //   { "mode": "feed",    "url": "<rss/atom feed url>" }
 //   { "mode": "article", "url": "<article url>" }
 //
-// Deploy with "Verify JWT" OFF (it is called from the browser).
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Deploy with "Verify JWT" OFF (called from the browser).
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,41 +18,11 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const TTL: Record<string, number> = {
-  feed: 60 * 10, // 10 minutes
-  article: 60 * 60 * 24, // 24 hours
-};
-
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-);
-
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'content-type': 'application/json' },
   });
-}
-
-async function readCache(mode: string, url: string): Promise<unknown | null> {
-  const { data } = await supabase
-    .from('crawl_cache')
-    .select('payload, fetched_at')
-    .eq('mode', mode)
-    .eq('url', url)
-    .maybeSingle();
-  if (!data) return null;
-  const age = (Date.now() - new Date(data.fetched_at).getTime()) / 1000;
-  if (age > (TTL[mode] ?? 600)) return null;
-  return data.payload;
-}
-
-async function writeCache(mode: string, url: string, payload: unknown) {
-  await supabase.from('crawl_cache').upsert(
-    { mode, url, payload, fetched_at: new Date().toISOString() },
-    { onConflict: 'mode,url' },
-  );
 }
 
 async function fetchText(url: string): Promise<string> {
@@ -67,17 +33,13 @@ async function fetchText(url: string): Promise<string> {
   return await res.text();
 }
 
-// --- RSS/Atom parsing (dependency-free) ------------------------------------
-
 function firstTag(block: string, name: string): string {
-  const re = new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, 'i');
-  const m = block.match(re);
+  const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, 'i'));
   return m ? m[1] : '';
 }
 
 function attrOf(block: string, tag: string, attr: string): string | null {
-  const re = new RegExp(`<${tag}\\b[^>]*\\b${attr}=["']([^"']+)["']`, 'i');
-  const m = block.match(re);
+  const m = block.match(new RegExp(`<${tag}\\b[^>]*\\b${attr}=["']([^"']+)["']`, 'i'));
   return m ? m[1] : null;
 }
 
@@ -93,8 +55,7 @@ function decodeEntities(s: string): string {
 }
 
 function stripHtml(input: string): string {
-  return decodeEntities(input.replace(/<[^>]*>/g, ' '))
-    .replace(/\s+/g, ' ').trim();
+  return decodeEntities(input.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
 function toIso(d: string): string | null {
@@ -105,8 +66,7 @@ function toIso(d: string): string | null {
 function parseFeed(xml: string) {
   const isAtom = /<feed[\s>]/i.test(xml) && !/<rss[\s>]/i.test(xml);
   const blocks =
-    xml.match(isAtom ? /<entry[\s\S]*?<\/entry>/gi : /<item[\s\S]*?<\/item>/gi) ??
-    [];
+    xml.match(isAtom ? /<entry[\s\S]*?<\/entry>/gi : /<item[\s\S]*?<\/item>/gi) ?? [];
 
   const articles = [];
   for (const b of blocks) {
@@ -119,8 +79,8 @@ function parseFeed(xml: string) {
 
     const rawDesc =
       firstTag(b, isAtom ? 'summary' : 'description') || firstTag(b, 'content');
-    const date = firstTag(b, isAtom ? 'updated' : 'pubDate') ||
-      firstTag(b, 'published');
+    const date =
+      firstTag(b, isAtom ? 'updated' : 'pubDate') || firstTag(b, 'published');
     const image =
       attrOf(b, 'media:content', 'url') ??
       attrOf(b, 'media:thumbnail', 'url') ??
@@ -154,14 +114,6 @@ function extractReadable(html: string): string {
     .join('\n\n');
 }
 
-async function handleFeed(url: string) {
-  return { articles: parseFeed(await fetchText(url)) };
-}
-
-async function handleArticle(url: string) {
-  return { url, content: extractReadable(await fetchText(url)) };
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -171,19 +123,13 @@ Deno.serve(async (req) => {
     if (typeof url !== 'string' || !/^https?:\/\//.test(url)) {
       return json({ error: 'Invalid "url"' }, 400);
     }
-    if (mode !== 'feed' && mode !== 'article') {
-      return json({ error: 'Invalid "mode"' }, 400);
+    if (mode === 'feed') {
+      return json({ articles: parseFeed(await fetchText(url)) });
     }
-
-    const cached = await readCache(mode, url);
-    if (cached) return json(cached);
-
-    const payload = mode === 'feed'
-      ? await handleFeed(url)
-      : await handleArticle(url);
-
-    await writeCache(mode, url, payload);
-    return json(payload);
+    if (mode === 'article') {
+      return json({ url, content: extractReadable(await fetchText(url)) });
+    }
+    return json({ error: 'Invalid "mode"' }, 400);
   } catch (err) {
     return json({ error: String(err) }, 502);
   }
