@@ -30,29 +30,34 @@ class NewsFeedScreen extends ConsumerWidget {
               child: const Text('로그인'),
             ),
         ],
-        bottom: const _FeedControls(),
       ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(newsFeedProvider.future),
-        child: feed.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, _) => _ErrorView(
-            message: err.toString(),
-            onRetry: () => ref.invalidate(newsFeedProvider),
+      body: Column(
+        children: [
+          const _FilterBar(),
+          const Divider(height: 1),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => ref.refresh(newsFeedProvider.future),
+              child: feed.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (err, _) => _ErrorView(
+                  message: err.toString(),
+                  onRetry: () => ref.invalidate(newsFeedProvider),
+                ),
+                data: (articles) => _FeedList(articles: articles),
+              ),
+            ),
           ),
-          data: (articles) => _FeedList(articles: articles),
-        ),
+        ],
       ),
     );
   }
 }
 
-/// Category chips + region filter shown under the app bar.
-class _FeedControls extends ConsumerWidget implements PreferredSizeWidget {
-  const _FeedControls();
-
-  @override
-  Size get preferredSize => const Size.fromHeight(96);
+/// Category + region selectors. Uses [Wrap] so chip labels always render fully.
+class _FilterBar extends ConsumerWidget {
+  const _FilterBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -60,40 +65,36 @@ class _FeedControls extends ConsumerWidget implements PreferredSizeWidget {
     final selected = ref.watch(effectiveCategoryProvider);
     final region = ref.watch(regionFilterProvider);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
               for (final c in categories)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(c.label),
-                    selected: c.id == selected,
-                    onSelected: (_) =>
-                        ref.read(selectedCategoryProvider.notifier).state = c.id,
-                  ),
+                ChoiceChip(
+                  label: Text(c.label),
+                  selected: c.id == selected,
+                  showCheckmark: false,
+                  onSelected: (_) =>
+                      ref.read(selectedCategoryProvider.notifier).state = c.id,
                 ),
             ],
           ),
-        ),
-        SizedBox(
-          height: 44,
-          child: Row(
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
             children: [
-              const SizedBox(width: 12),
               _RegionChip(label: '전체', value: null, current: region),
               for (final r in NewsRegion.values)
                 _RegionChip(label: r.label, value: r, current: region),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -111,14 +112,12 @@ class _RegionChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: value == current,
-        onSelected: (_) =>
-            ref.read(regionFilterProvider.notifier).state = value,
-      ),
+    return FilterChip(
+      label: Text(label),
+      selected: value == current,
+      showCheckmark: false,
+      onSelected: (_) =>
+          ref.read(regionFilterProvider.notifier).state = value,
     );
   }
 }
@@ -134,7 +133,7 @@ class _FeedList extends ConsumerWidget {
       return ListView(
         children: const [
           SizedBox(height: 120),
-          Center(child: Text('No articles yet. Pull to refresh.')),
+          Center(child: Text('표시할 기사가 없습니다. 당겨서 새로고침하세요.')),
         ],
       );
     }
@@ -169,7 +168,7 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        const SizedBox(height: 100),
+        const SizedBox(height: 80),
         const Center(child: Icon(Icons.cloud_off, size: 48)),
         const SizedBox(height: 12),
         Padding(
@@ -180,7 +179,7 @@ class _ErrorView extends StatelessWidget {
         Center(
           child: FilledButton.tonal(
             onPressed: onRetry,
-            child: const Text('Retry'),
+            child: const Text('다시 시도'),
           ),
         ),
       ],

@@ -59,11 +59,13 @@ class NewsService {
   /// results, sorted newest-first. Individual source failures are ignored so a
   /// single broken feed does not break the whole timeline.
   Future<List<NewsArticle>> fetchAll(List<NewsSource> sources) async {
+    Object? firstError;
     final results = await Future.wait(
       sources.map((s) async {
         try {
           return await fetchFeed(s);
-        } catch (_) {
+        } catch (e) {
+          firstError ??= e;
           return <NewsArticle>[];
         }
       }),
@@ -78,6 +80,12 @@ class NewsService {
         if (bd == null) return -1;
         return bd.compareTo(ad);
       });
+
+    // If every source failed, surface the error instead of an empty feed so
+    // the cause (e.g. proxy not deployed, JWT rejected) is visible.
+    if (merged.isEmpty && firstError != null) {
+      throw firstError!;
+    }
     return merged;
   }
 
