@@ -26,6 +26,11 @@ class NewsFeedScreen extends ConsumerWidget {
         title: const Text('News'),
         actions: [
           IconButton(
+            tooltip: '검색',
+            icon: const Icon(Icons.search),
+            onPressed: () => context.go(Routes.search),
+          ),
+          IconButton(
             tooltip: '새로고침',
             icon: const Icon(Icons.refresh),
             // Re-fetches the feed. Deleted articles stay hidden because
@@ -63,35 +68,77 @@ class NewsFeedScreen extends ConsumerWidget {
   }
 }
 
-/// Category + region selectors. Uses [Wrap] so chip labels always render fully.
+/// Whether the category chips are expanded. Collapsed by default to keep the
+/// feed roomy; the active category still shows in the header.
+final _categoriesExpandedProvider = StateProvider<bool>((ref) => false);
+
+/// Category + region selectors. The category chips are collapsible (hidden by
+/// default); the region chips stay visible.
 class _FilterBar extends ConsumerWidget {
   const _FilterBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final categories = ref.watch(enabledCategoriesProvider);
     final selected = ref.watch(effectiveCategoryProvider);
     final region = ref.watch(regionFilterProvider);
+    final expanded = ref.watch(_categoriesExpandedProvider);
+    final selectedLabel = NewsCategory.byId(selected)?.label ?? '';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final c in categories)
-                ChoiceChip(
-                  label: Text(c.label),
-                  selected: c.id == selected,
-                  showCheckmark: false,
-                  onSelected: (_) =>
-                      ref.read(selectedCategoryProvider.notifier).state = c.id,
-                ),
-            ],
+          // Collapsible header showing the active category.
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => ref
+                .read(_categoriesExpandedProvider.notifier)
+                .state = !expanded,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.category_outlined,
+                      size: 18, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text('카테고리', style: theme.textTheme.labelLarge),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      selectedLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.outline),
+                    ),
+                  ),
+                  Icon(expanded ? Icons.expand_less : Icons.expand_more,
+                      color: theme.colorScheme.outline),
+                ],
+              ),
+            ),
           ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final c in categories)
+                    ChoiceChip(
+                      label: Text(c.label),
+                      selected: c.id == selected,
+                      showCheckmark: false,
+                      onSelected: (_) {
+                        ref.read(selectedCategoryProvider.notifier).state = c.id;
+                      },
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,

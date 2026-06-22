@@ -50,6 +50,18 @@ class NewsSource {
           for (final r in NewsRegion.values) forCategory(c, r),
       ];
 
+  /// An ad-hoc search source for a free-text [query] in one region.
+  static NewsSource forSearch(String query, NewsRegion r) {
+    return NewsSource(
+      id: 'search-${r.name}',
+      name: '검색 · ${r.label}',
+      feedUrl: 'https://news.google.com/rss/search'
+          '?q=${Uri.encodeQueryComponent(query)}&${r.query}',
+      categoryId: 'search',
+      region: r,
+    );
+  }
+
   /// Sources for one category, optionally filtered to a single region.
   static List<NewsSource> forCategoryId(String categoryId, {NewsRegion? region}) {
     final c = NewsCategory.byId(categoryId);

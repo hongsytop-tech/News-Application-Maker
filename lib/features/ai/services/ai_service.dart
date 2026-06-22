@@ -48,6 +48,26 @@ class AiService {
     throw const AiException('Could not translate this article.');
   }
 
+  /// Converts a natural-language [request] into Google News search queries
+  /// (Korean + English) plus a few topic tags.
+  Future<({String ko, String en, List<String> keywords})> searchKeywords(
+      String request) async {
+    final res = await SupabaseService.client.functions.invoke(
+      'ai-search',
+      body: {'query': request},
+    );
+    final data = res.data;
+    if (data is Map && (data['ko'] is String || data['en'] is String)) {
+      final kw = (data['keywords'] as List?)?.map((e) => e.toString()).toList();
+      return (
+        ko: (data['ko'] as String?) ?? request,
+        en: (data['en'] as String?) ?? request,
+        keywords: kw ?? const [],
+      );
+    }
+    throw const AiException('Could not interpret the search request.');
+  }
+
   /// Rebuilds the signed-in user's taste profile from recent interactions.
   /// Returns the profile map: { category_weights, keywords, summary }.
   Future<Map<String, dynamic>> refreshTaste() async {
