@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:news_application_maker/core/router/app_router.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/auth/providers/auth_provider.dart';
-import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/preferences/providers/settings_provider.dart';
 import 'package:news_application_maker/features/update/providers/update_provider.dart';
 import 'package:news_application_maker/features/update/services/update_service.dart';
@@ -49,25 +48,15 @@ class MyPageScreen extends ConsumerWidget {
           ],
           const Divider(),
 
-          // --- Categories (grouped) ---
-          const _SectionHeader('보고 싶은 카테고리'),
-          for (final group in NewsCategory.groups) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(group,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      )),
-            ),
-            for (final c in NewsCategory.inGroup(group))
-              SwitchListTile(
-                dense: true,
-                title: Text(c.label),
-                value: settings.isEnabled(c.id),
-                onChanged: (_) =>
-                    ref.read(settingsProvider.notifier).toggleCategory(c.id),
-              ),
-          ],
+          // --- Categories (in a dedicated screen) ---
+          const _SectionHeader('피드 설정'),
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('보고 싶은 카테고리'),
+            subtitle: Text('${settings.enabledCategories.length}개 선택됨'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.categories),
+          ),
           const Divider(),
 
           // --- AI taste ---

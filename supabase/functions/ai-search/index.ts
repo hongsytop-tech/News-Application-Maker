@@ -22,6 +22,18 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/// Strips Markdown code fences / stray prose so JSON.parse succeeds even when
+/// the model wraps its answer in ```json ... ```.
+function extractJson(s: string): string {
+  let t = s.trim();
+  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) t = fence[1].trim();
+  const first = t.indexOf('{');
+  const last = t.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) t = t.slice(first, last + 1);
+  return t;
+}
+
 type Queries = { ko: string; en: string; keywords: string[] };
 
 async function claude(query: string): Promise<Queries> {
@@ -54,7 +66,7 @@ async function claude(query: string): Promise<Queries> {
     // deno-lint-ignore no-explicit-any
     .filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
   try {
-    const p = JSON.parse(text);
+    const p = JSON.parse(extractJson(text));
     return {
       ko: typeof p.ko === 'string' && p.ko.trim() ? p.ko.trim() : query,
       en: typeof p.en === 'string' && p.en.trim() ? p.en.trim() : query,

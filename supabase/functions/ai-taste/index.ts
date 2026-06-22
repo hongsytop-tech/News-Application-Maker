@@ -20,6 +20,18 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/// Strips Markdown code fences and surrounding prose so JSON.parse succeeds even
+/// when the model wraps its answer in ```json ... ``` or adds stray text.
+function extractJson(s: string): string {
+  let t = s.trim();
+  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) t = fence[1].trim();
+  const first = t.indexOf('{');
+  const last = t.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) t = t.slice(first, last + 1);
+  return t;
+}
+
 const SUPA = Deno.env.get('SUPABASE_URL')!;
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -103,7 +115,7 @@ Deno.serve(async (req) => {
     const raw = await claude(`Interactions (newest first):\n${JSON.stringify(events)}`);
     let profile: unknown;
     try {
-      profile = JSON.parse(raw);
+      profile = JSON.parse(extractJson(raw));
     } catch (_) {
       profile = { category_weights: {}, keywords: [], summary: raw.slice(0, 200) };
     }

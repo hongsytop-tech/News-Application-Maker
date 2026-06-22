@@ -198,7 +198,14 @@ class _TranslatedSummary extends StatelessWidget {
         const SizedBox(width: 8),
         Text('AI 번역 중…', style: hintStyle),
       ]),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (e, _) {
+        final msg = e is AiException ? e.message : e.toString();
+        return Text(
+          '번역 실패: ${msg.length > 140 ? '${msg.substring(0, 140)}…' : msg}',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.error),
+        );
+      },
       data: (_) {
         final summary = text ?? '';
         if (summary.isEmpty) return const SizedBox.shrink();

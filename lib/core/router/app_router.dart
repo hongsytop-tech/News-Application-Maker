@@ -10,6 +10,7 @@ import 'package:news_application_maker/features/news_feed/models/news_article.da
 import 'package:news_application_maker/features/news_feed/screens/article_detail_screen.dart';
 import 'package:news_application_maker/features/news_feed/screens/news_feed_screen.dart';
 import 'package:news_application_maker/features/news_feed/screens/news_search_screen.dart';
+import 'package:news_application_maker/features/preferences/screens/category_settings_screen.dart';
 import 'package:news_application_maker/features/mypage/screens/my_page_screen.dart';
 import 'package:news_application_maker/features/shell/home_shell.dart';
 import 'package:news_application_maker/features/trash/screens/trash_screen.dart';
@@ -22,6 +23,7 @@ class Routes {
   static const bookmarks = '/bookmarks';
   static const mypage = '/mypage';
   static const search = '/search';
+  static const categories = '/categories';
   static const trash = '/trash';
   static const article = 'article'; // sub-route of /feed
 }
@@ -51,6 +53,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.search,
         builder: (context, state) => const NewsSearchScreen(),
+      ),
+      GoRoute(
+        path: Routes.categories,
+        builder: (context, state) => const CategorySettingsScreen(),
       ),
       GoRoute(
         path: Routes.trash,

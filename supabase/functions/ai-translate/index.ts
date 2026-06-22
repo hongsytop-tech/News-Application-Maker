@@ -29,6 +29,18 @@ const restHeaders = {
   'content-type': 'application/json',
 };
 
+/// Strips Markdown code fences / stray prose so JSON.parse succeeds even when
+/// the model wraps its answer in ```json ... ```.
+function extractJson(s: string): string {
+  let t = s.trim();
+  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) t = fence[1].trim();
+  const first = t.indexOf('{');
+  const last = t.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) t = t.slice(first, last + 1);
+  return t;
+}
+
 type Translation = { title: string; summary: string };
 
 async function getCached(url: string): Promise<Translation | null> {
@@ -93,7 +105,7 @@ async function claude(title: string, summary: string): Promise<Translation> {
     // deno-lint-ignore no-explicit-any
     .filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(extractJson(text));
     return {
       title: typeof parsed.title === 'string' ? parsed.title : title,
       summary: typeof parsed.summary === 'string' ? parsed.summary : '',
