@@ -49,15 +49,25 @@ class MyPageScreen extends ConsumerWidget {
           ],
           const Divider(),
 
-          // --- Categories ---
+          // --- Categories (grouped) ---
           const _SectionHeader('보고 싶은 카테고리'),
-          for (final c in NewsCategory.all)
-            SwitchListTile(
-              title: Text(c.label),
-              value: settings.isEnabled(c.id),
-              onChanged: (_) =>
-                  ref.read(settingsProvider.notifier).toggleCategory(c.id),
+          for (final group in NewsCategory.groups) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text(group,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      )),
             ),
+            for (final c in NewsCategory.inGroup(group))
+              SwitchListTile(
+                dense: true,
+                title: Text(c.label),
+                value: settings.isEnabled(c.id),
+                onChanged: (_) =>
+                    ref.read(settingsProvider.notifier).toggleCategory(c.id),
+              ),
+          ],
           const Divider(),
 
           // --- AI taste ---

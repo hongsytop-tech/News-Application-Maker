@@ -5,31 +5,35 @@ import 'package:news_application_maker/features/news_feed/models/news_category.d
 class UserSettings {
   const UserSettings({required this.enabledCategoryIds});
 
-  /// Ids of [NewsCategory] the user has enabled. Empty means "all".
+  /// Ids of [NewsCategory] the user has enabled. Empty means "the defaults"
+  /// (main topics only); sub-topics are opt-in.
   final Set<String> enabledCategoryIds;
 
-  /// Default: every category enabled.
-  factory UserSettings.initial() => UserSettings(
-        enabledCategoryIds: {for (final c in NewsCategory.all) c.id},
-      );
+  static Set<String> get _defaultIds =>
+      {for (final c in NewsCategory.defaults) c.id};
 
-  /// Resolves to the ordered list of enabled categories (falls back to all).
+  /// Default: only the main topics enabled (sub-topics off).
+  factory UserSettings.initial() =>
+      UserSettings(enabledCategoryIds: _defaultIds);
+
+  /// Resolves to the ordered list of enabled categories (falls back to
+  /// defaults when nothing is configured).
   List<NewsCategory> get enabledCategories {
+    final ids = enabledCategoryIds.isEmpty ? _defaultIds : enabledCategoryIds;
     final list = [
       for (final c in NewsCategory.all)
-        if (enabledCategoryIds.isEmpty || enabledCategoryIds.contains(c.id)) c,
+        if (ids.contains(c.id)) c,
     ];
-    return list.isEmpty ? NewsCategory.all : list;
+    return list.isEmpty ? NewsCategory.defaults : list;
   }
 
   bool isEnabled(String categoryId) =>
-      enabledCategoryIds.isEmpty || enabledCategoryIds.contains(categoryId);
+      (enabledCategoryIds.isEmpty ? _defaultIds : enabledCategoryIds)
+          .contains(categoryId);
 
   UserSettings toggle(String categoryId) {
     final next = Set<String>.from(
-      enabledCategoryIds.isEmpty
-          ? {for (final c in NewsCategory.all) c.id}
-          : enabledCategoryIds,
+      enabledCategoryIds.isEmpty ? _defaultIds : enabledCategoryIds,
     );
     if (next.contains(categoryId)) {
       next.remove(categoryId);

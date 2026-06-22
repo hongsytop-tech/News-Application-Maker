@@ -20,9 +20,19 @@ class NewsSource {
   final String categoryId;
   final NewsRegion region;
 
-  static String _feedUrl(NewsCategory c, NewsRegion r) =>
-      'https://news.google.com/rss/headlines/section/topic/'
-      '${c.googleTopic}?${r.query}';
+  static String _feedUrl(NewsCategory c, NewsRegion r) {
+    if (!c.isQuery) {
+      return 'https://news.google.com/rss/headlines/section/topic/'
+          '${c.googleTopic}?${r.query}';
+    }
+    // Search-based sub-topic: pick region-appropriate keywords.
+    final q = (r == NewsRegion.ko ? c.koQuery : c.enQuery) ??
+        c.koQuery ??
+        c.enQuery ??
+        c.label;
+    return 'https://news.google.com/rss/search'
+        '?q=${Uri.encodeQueryComponent(q)}&${r.query}';
+  }
 
   static NewsSource forCategory(NewsCategory c, NewsRegion r) {
     return NewsSource(
