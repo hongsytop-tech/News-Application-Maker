@@ -55,6 +55,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: '닫기',
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(Routes.feed),
+        ),
+      ),
+      extendBodyBehindAppBar: true,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
