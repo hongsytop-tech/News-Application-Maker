@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:news_application_maker/core/config/env.dart';
 import 'package:news_application_maker/core/supabase/supabase_service.dart';
+import 'package:news_application_maker/core/utils/html_text.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/models/news_source.dart';
 
@@ -100,7 +101,8 @@ class NewsService {
     _ensureOk(response);
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return article.copyWith(content: body['content'] as String?);
+    final cleaned = stripHtml(body['content'] as String?);
+    return article.copyWith(content: cleaned.isEmpty ? null : cleaned);
   }
 
   void _ensureProxyConfigured() {

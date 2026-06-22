@@ -1,3 +1,5 @@
+import 'package:news_application_maker/core/utils/html_text.dart';
+
 /// A single article surfaced in the feed.
 ///
 /// The [url] doubles as the stable identity used for bookmarking and caching.
@@ -34,7 +36,7 @@ class NewsArticle {
       title: (json['title'] as String?)?.trim().isNotEmpty == true
           ? json['title'] as String
           : '(untitled)',
-      summary: (json['summary'] as String?) ?? '',
+      summary: stripHtml(json['summary'] as String?),
       imageUrl: json['image_url'] as String?,
       sourceName: (json['source_name'] as String?) ?? '',
       categoryId: (json['category_id'] as String?) ?? '',
