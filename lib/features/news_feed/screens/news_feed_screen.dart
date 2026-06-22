@@ -25,6 +25,13 @@ class NewsFeedScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('News'),
         actions: [
+          IconButton(
+            tooltip: '새로고침',
+            icon: const Icon(Icons.refresh),
+            // Re-fetches the feed. Deleted articles stay hidden because
+            // _FeedList filters out anything in the trash.
+            onPressed: () => ref.invalidate(newsFeedProvider),
+          ),
           if (user == null)
             TextButton(
               onPressed: () => context.go(Routes.login),
