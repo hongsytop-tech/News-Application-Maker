@@ -3,8 +3,7 @@ ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
 SYMS=[("^KS11","코스피"),("^KQ11","코스닥"),("^GSPC","S&P500"),("^IXIC","나스닥"),("^DJI","다우")]
 def ds(ts): return datetime.datetime.utcfromtimestamp(ts).strftime("%m-%d")
-nowutc=datetime.datetime.now(datetime.timezone.utc)
-print("now UTC:", nowutc.strftime("%m-%d %H:%MZ"))
+print("now UTC:", datetime.datetime.now(datetime.timezone.utc).strftime("%m-%d %H:%MZ"))
 for sym,name in SYMS:
     u=f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sym)}?range=10d&interval=1d"
     try:
@@ -16,8 +15,8 @@ for sym,name in SYMS:
         exday=lambda e: math.floor((e+gmt)/86400)
         today=exday(datetime.datetime.now().timestamp())
         series=[(exday(ts[i]),ts[i],closes[i]) for i in range(len(ts)) if closes[i] is not None]
-        last=series[-1]; open=(state=="REGULAR")
-        idx=len(series)-2 if (last[0]==today and openness:=open) else len(series)-1
+        last=series[-1]; is_open=(state=="REGULAR")
+        idx = len(series)-2 if (last[0]==today and is_open) else len(series)-1
         if idx<1: idx=len(series)-1
         cur=series[idx]; prev=series[idx-1]
         chg=cur[2]-prev[2]; pct=chg/prev[2]*100
