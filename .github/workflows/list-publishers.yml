@@ -1,0 +1,17 @@
+name: List publishers
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "claude/**"
+    paths:
+      - tool/list_publishers.py
+      - .github/workflows/list-publishers.yml
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/list_publishers.py
