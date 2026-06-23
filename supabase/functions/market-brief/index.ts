@@ -72,16 +72,19 @@ async function fetchIndex(s: { symbol: string; name: string; market: string }): 
     }
     if (series.length < 2) return null;
 
-    // Most recent COMPLETED session. Only drop the last candle when it is
-    // *today's* still-open session (marketState REGULAR); a session that has
-    // already closed — even if its local date equals "today" because the user
-    // is in another timezone (e.g. a Korean morning vs the US previous close)
-    // — must be kept.
+    // Most recent COMPLETED session. Drop the last candle only when it is
+    // *today's still-open* session; a session that already closed — even if its
+    // local date is "today" because the viewer is in another timezone (e.g. a
+    // Korean morning vs the just-closed US session) — must be kept.
+    // marketState can be empty, so also derive "open" from the trading hours.
+    const nowSec = Date.now() / 1000;
+    const reg = meta.currentTradingPeriod?.regular;
+    const stateOpen = String(meta.marketState ?? '') === 'REGULAR';
+    const sessionOpen = reg != null &&
+        Number(reg.start) <= nowSec && nowSec < Number(reg.end);
     const last = series[series.length - 1];
-    const open = String(meta.marketState ?? '') === 'REGULAR';
-    let idx = (last.day === todayLocal && open)
-        ? series.length - 2
-        : series.length - 1;
+    const inProgress = last.day === todayLocal && (stateOpen || sessionOpen);
+    let idx = inProgress ? series.length - 2 : series.length - 1;
     if (idx < 1) idx = series.length - 1;
     if (idx < 1) return null;
 
