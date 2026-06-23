@@ -3,13 +3,14 @@
 
 -- ---------------------------------------------------------------------------
 -- user_events: interaction signals that feed preference learning.
--- One row per (open / bookmark / dismiss) action.
+-- One row per (open / bookmark / like / dislike) action.
 -- ---------------------------------------------------------------------------
 create table if not exists public.user_events (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users (id) on delete cascade,
   url          text not null,
-  type         text not null check (type in ('open', 'bookmark', 'dismiss')),
+  type         text not null
+    check (type in ('open', 'bookmark', 'like', 'dislike', 'dismiss')),
   category     text,
   source_name  text,
   created_at   timestamptz not null default now()

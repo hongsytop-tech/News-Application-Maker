@@ -65,7 +65,10 @@ async function claude(prompt: string): Promise<string> {
       max_tokens: 600,
       system:
         'You analyze a reader\'s news interactions and produce a compact taste ' +
-        'profile. Respond with ONLY valid JSON of the shape ' +
+        'profile. Each event has a "type": treat "like" and "bookmark" as ' +
+        'strong positive signals, "open" as mild positive, and "dislike" as a ' +
+        'strong negative signal (down-weight those categories/sources). ' +
+        'Respond with ONLY valid JSON of the shape ' +
         '{"category_weights": {"<category>": <0..1>}, "keywords": ["..."], ' +
         '"summary": "one sentence describing their interests"}. ' +
         'Weights should sum to roughly 1. No prose outside the JSON.',

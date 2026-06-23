@@ -64,12 +64,12 @@ class MyPageScreen extends ConsumerWidget {
           const _TasteSection(),
           const Divider(),
 
-          // --- Trash ---
+          // --- Confirmed (read) news ---
           const _SectionHeader('보관함'),
           ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('휴지통'),
-            subtitle: const Text('피드에서 삭제한 기사를 보고 복원합니다.'),
+            leading: const Icon(Icons.done_all),
+            title: const Text('확인한 뉴스'),
+            subtitle: const Text('피드에서 확인 처리한 기사를 보고 되돌립니다.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(Routes.trash),
           ),

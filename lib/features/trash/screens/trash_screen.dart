@@ -13,12 +13,12 @@ class TrashScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('휴지통'),
+        title: const Text('확인한 뉴스'),
         actions: [
           if (items.isNotEmpty)
             TextButton(
               onPressed: () => ref.read(trashProvider.notifier).clearAll(),
-              child: const Text('비우기'),
+              child: const Text('모두 되돌리기'),
             ),
         ],
       ),
@@ -36,25 +36,14 @@ class TrashScreen extends ConsumerWidget {
                   subtitle: Text(
                     [
                       if (a.sourceName.isNotEmpty) a.sourceName,
-                      '삭제 ${DateFormat.yMMMd().format(item.deletedAt)}',
+                      '확인 ${DateFormat.yMMMd().format(item.deletedAt)}',
                     ].join(' · '),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: '복원',
-                        icon: const Icon(Icons.restore_from_trash),
-                        onPressed: () =>
-                            ref.read(trashProvider.notifier).restore(a.url),
-                      ),
-                      IconButton(
-                        tooltip: '영구 삭제',
-                        icon: const Icon(Icons.delete_forever_outlined),
-                        onPressed: () =>
-                            ref.read(trashProvider.notifier).purge(a.url),
-                      ),
-                    ],
+                  trailing: IconButton(
+                    tooltip: '되돌리기 (피드에 다시 표시)',
+                    icon: const Icon(Icons.undo),
+                    onPressed: () =>
+                        ref.read(trashProvider.notifier).restore(a.url),
                   ),
                 );
               },
@@ -72,13 +61,13 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.delete_outline,
+          Icon(Icons.done_all,
               size: 56, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 12),
-          const Text('휴지통이 비어 있습니다'),
+          const Text('확인한 뉴스가 없습니다'),
           const SizedBox(height: 4),
           Text(
-            '피드에서 삭제한 기사가 여기 모입니다.',
+            '피드에서 "확인"한 기사가 여기 모입니다.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],

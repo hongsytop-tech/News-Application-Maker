@@ -8,12 +8,12 @@ import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/bookmarks/providers/bookmark_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
-import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
-import 'package:news_application_maker/features/preferences/services/event_service.dart';
+import 'package:news_application_maker/features/news_feed/widgets/reaction_buttons.dart';
 import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
 /// Card for one article in the feed: header (tap to open), an action row
-/// (AI summary / bookmark / delete) and an optional inline AI summary.
+/// (like / dislike / AI summary / bookmark / 확인) and an optional inline AI
+/// summary.
 class ArticleCard extends ConsumerStatefulWidget {
   const ArticleCard({required this.article, required this.onTap, super.key});
 
@@ -29,15 +29,15 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
 
   NewsArticle get article => widget.article;
 
-  void _delete() {
+  /// Mark as read: hide the article from the feed (kept in "확인한 뉴스" so it
+  /// can be brought back). Not a preference signal.
+  void _confirm() {
     ref.read(trashProvider.notifier).trash(article);
-    // Deleting is a negative preference signal.
-    ref.read(recommendationProvider.notifier).record(EventType.dismiss, article);
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: const Text('휴지통으로 이동했습니다'),
+          content: const Text('확인한 뉴스로 옮겼습니다'),
           action: SnackBarAction(
             label: '실행취소',
             onPressed: () =>
@@ -129,16 +129,19 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               children: [
-                TextButton.icon(
+                ReactionButtons(article: article),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'AI 요약',
                   icon: Icon(_showSummary
                       ? Icons.expand_less
                       : Icons.auto_awesome),
-                  label: const Text('AI 요약'),
                   onPressed: () =>
                       setState(() => _showSummary = !_showSummary),
                 ),
                 const Spacer(),
                 IconButton(
+                  visualDensity: VisualDensity.compact,
                   tooltip: bookmarked ? '북마크 해제' : '북마크',
                   icon: Icon(
                     bookmarked ? Icons.bookmark : Icons.bookmark_outline,
@@ -148,9 +151,10 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
                       ref.read(bookmarksProvider.notifier).toggle(article),
                 ),
                 IconButton(
-                  tooltip: '삭제',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: _delete,
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '확인 (목록에서 숨기기)',
+                  icon: const Icon(Icons.check_circle_outline),
+                  onPressed: _confirm,
                 ),
               ],
             ),

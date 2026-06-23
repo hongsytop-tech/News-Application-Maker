@@ -9,6 +9,7 @@ import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/bookmarks/providers/bookmark_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/providers/news_feed_provider.dart';
+import 'package:news_application_maker/features/news_feed/widgets/reaction_buttons.dart';
 import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/services/event_service.dart';
 
@@ -53,6 +54,7 @@ class ArticleDetailScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         actions: [
+          ReactionButtons(article: article),
           IconButton(
             tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
             icon: Icon(bookmarked ? Icons.bookmark : Icons.bookmark_outline),

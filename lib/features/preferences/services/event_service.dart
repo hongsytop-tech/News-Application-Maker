@@ -3,7 +3,7 @@ import 'package:news_application_maker/core/supabase/supabase_service.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 
 /// Interaction event types that feed preference learning.
-enum EventType { open, bookmark, dismiss }
+enum EventType { open, bookmark, like, dislike }
 
 /// Records interaction signals: locally as aggregate affinity counts (used for
 /// instant, offline re-ranking) and remotely in `user_events` (used by the
@@ -40,7 +40,8 @@ class EventService {
   int _weight(EventType type) => switch (type) {
         EventType.open => 1,
         EventType.bookmark => 3,
-        EventType.dismiss => -2,
+        EventType.like => 4,
+        EventType.dislike => -4,
       };
 
   Future<void> record(EventType type, NewsArticle article) async {
