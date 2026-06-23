@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/news_feed/models/news_source.dart';
@@ -33,6 +34,8 @@ final newsFeedProvider =
   final selected = ref.watch(selectedCategoryProvider);
   final region = ref.watch(regionFilterProvider);
   final scoreOf = ref.read(scorerProvider);
+  // Category weights learned by the AI taste analysis (empty until first run).
+  final tasteWeights = ref.read(tasteControllerProvider.notifier).categoryWeights;
 
   // A specific (still-enabled) category, or "전체" → every enabled category.
   final showAll = selected == null || !enabled.any((c) => c.id == selected);
@@ -60,10 +63,25 @@ final newsFeedProvider =
     return bd.compareTo(ad);
   }
 
+  // "전체": newest-first, gently nudged by the AI taste profile so preferred
+  // categories surface a little higher without clustering. A category weighted
+  // 1.0 ranks as if its articles were up to ~12h fresher; with no taste profile
+  // yet, the nudge is zero and the feed is purely chronological.
+  DateTime? boosted(NewsArticle a) {
+    final t = a.publishedAt;
+    if (t == null) return null;
+    final w = (tasteWeights[a.categoryId] ?? 0).clamp(0.0, 1.0);
+    return t.add(Duration(minutes: (w * 12 * 60).round()));
+  }
+
   if (showAll) {
-    // "전체": a mixed timeline — newest first so every category interleaves
-    // instead of the most-engaged category clustering at the top.
-    articles.sort(byRecency);
+    articles.sort((a, b) {
+      final ab = boosted(a), bb = boosted(b);
+      if (ab == null && bb == null) return 0;
+      if (ab == null) return 1;
+      if (bb == null) return -1;
+      return bb.compareTo(ab);
+    });
   } else {
     // Within a single category, surface preferred sources/topics first.
     articles.sort((a, b) {

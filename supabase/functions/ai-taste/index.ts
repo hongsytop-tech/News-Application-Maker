@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
     if (!userId) return json({ error: 'Not authenticated' }, 401);
 
     const eventsRes = await fetch(
-      `${SUPA}/rest/v1/user_events?user_id=eq.${userId}&select=type,category,source_name,created_at&order=created_at.desc&limit=200`,
+      `${SUPA}/rest/v1/user_events?user_id=eq.${userId}&select=type,category,source_name,created_at&order=created_at.desc&limit=500`,
       { headers: restHeaders },
     );
     const events = eventsRes.ok ? await eventsRes.json() : [];
