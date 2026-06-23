@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:news_application_maker/core/utils/lang.dart';
@@ -72,12 +73,7 @@ class ArticleDetailScreen extends ConsumerWidget {
         children: [
           Text(title, style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
-          if (article.sourceName.isNotEmpty)
-            Text(
-              article.sourceName,
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: theme.colorScheme.primary),
-            ),
+          _MetaLine(article: article),
           const SizedBox(height: 16),
           if (article.imageUrl != null)
             ClipRRect(
@@ -118,6 +114,28 @@ class ArticleDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Source name and publication date shown under the headline.
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.article});
+  final NewsArticle article;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final parts = <String>[
+      if (article.sourceName.isNotEmpty) article.sourceName,
+      if (article.publishedAt != null)
+        DateFormat('yyyy.MM.dd HH:mm').format(article.publishedAt!.toLocal()),
+    ];
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Text(
+      parts.join(' · '),
+      style: theme.textTheme.labelLarge
+          ?.copyWith(color: theme.colorScheme.primary),
     );
   }
 }
