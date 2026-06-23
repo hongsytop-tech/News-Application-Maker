@@ -5,6 +5,7 @@ import 'package:news_application_maker/features/news_feed/models/news_article.da
 import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/services/event_service.dart';
 import 'package:news_application_maker/features/preferences/services/reaction_service.dart';
+import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
 const kLike = 'like';
 const kDislike = 'dislike';
@@ -25,8 +26,11 @@ class ReactionNotifier extends StateNotifier<Map<String, String>> {
 
   /// Sets [reaction] (kLike/kDislike) for [article], or clears it if the same
   /// reaction is tapped again. Records a preference event when newly set.
+  /// Disliking also moves the article to "확인한 뉴스" (hides it from the feed);
+  /// clearing a dislike brings it back.
   Future<void> toggle(NewsArticle article, String reaction) async {
     final url = article.url;
+    final wasDisliked = state[url] == kDislike;
     final next = Map<String, String>.from(state);
     if (next[url] == reaction) {
       next.remove(url); // tapping the active reaction clears it
@@ -39,6 +43,13 @@ class ReactionNotifier extends StateNotifier<Map<String, String>> {
     }
     state = next;
     await _service.save(next);
+
+    final nowDisliked = next[url] == kDislike;
+    if (nowDisliked && !wasDisliked) {
+      await _ref.read(trashProvider.notifier).trash(article);
+    } else if (!nowDisliked && wasDisliked) {
+      await _ref.read(trashProvider.notifier).restore(url);
+    }
   }
 }
 
