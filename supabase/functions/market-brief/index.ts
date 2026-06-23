@@ -49,21 +49,46 @@ type Idx = {
 async function fetchIndex(s: { symbol: string; name: string; market: string }): Promise<Idx | null> {
   try {
     const url =
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s.symbol)}?range=5d&interval=1d`;
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s.symbol)}?range=10d&interval=1d`;
     const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
     if (!r.ok) return null;
     const body = await r.json();
-    const meta = body?.chart?.result?.[0]?.meta;
-    if (!meta) return null;
-    const price = Number(meta.regularMarketPrice);
-    const prev = Number(meta.chartPreviousClose ?? meta.previousClose);
-    if (!isFinite(price) || !isFinite(prev) || prev === 0) return null;
-    const change = price - prev;
-    const ts = Number(meta.regularMarketTime);
+    const result = body?.chart?.result?.[0];
+    const meta = result?.meta;
+    const ts: number[] = result?.timestamp ?? [];
+    const closes: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? [];
+    if (!meta || ts.length === 0 || closes.length === 0) return null;
+
+    const gmt = Number(meta.gmtoffset ?? 0);
+    const exDay = (epoch: number) => Math.floor((epoch + gmt) / 86400);
+    const today = exDay(Date.now() / 1000);
+
+    // Daily closes (drop in-progress/empty candles).
+    const series: { day: number; ts: number; close: number }[] = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = closes[i];
+      if (c == null || !isFinite(Number(c))) continue;
+      series.push({ day: exDay(Number(ts[i])), ts: Number(ts[i]), close: Number(c) });
+    }
+    if (series.length < 2) return null;
+
+    // Most recent session strictly BEFORE today (= 전일), so we never show the
+    // in-progress / same-day candle.
+    let idx = -1;
+    for (let i = series.length - 1; i >= 0; i--) {
+      if (series[i].day < today) { idx = i; break; }
+    }
+    if (idx < 1) idx = series.length - 1; // fallback: last completed candle
+    if (idx < 1) return null;
+
+    const cur = series[idx];
+    const prev = series[idx - 1];
+    const change = cur.close - prev.close;
     return {
       symbol: s.symbol, name: s.name, market: s.market,
-      price, change, change_percent: (change / prev) * 100,
-      as_of: isFinite(ts) ? new Date(ts * 1000).toISOString() : null,
+      price: cur.close, change,
+      change_percent: (change / prev.close) * 100,
+      as_of: new Date(cur.ts * 1000).toISOString(),
     };
   } catch (_) {
     return null;

@@ -66,4 +66,13 @@ class UpdateService {
   }
 
   void applyUpdate() => reloadApp();
+
+  /// Checks for a newer deployed build and, if found, reloads automatically to
+  /// apply it (guarded against reload loops). Call once at app start.
+  Future<void> autoApplyIfAvailable() async {
+    final status = await check();
+    if (status.available && status.latest != null) {
+      tryAutoReload(status.latest!);
+    }
+  }
 }
