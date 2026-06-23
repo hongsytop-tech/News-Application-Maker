@@ -61,7 +61,7 @@ async function fetchIndex(s: { symbol: string; name: string; market: string }): 
 
     const gmt = Number(meta.gmtoffset ?? 0);
     const exDay = (epoch: number) => Math.floor((epoch + gmt) / 86400);
-    const today = exDay(Date.now() / 1000);
+    const todayLocal = exDay(Date.now() / 1000);
 
     // Daily closes (drop in-progress/empty candles).
     const series: { day: number; ts: number; close: number }[] = [];
@@ -72,13 +72,17 @@ async function fetchIndex(s: { symbol: string; name: string; market: string }): 
     }
     if (series.length < 2) return null;
 
-    // Most recent session strictly BEFORE today (= 전일), so we never show the
-    // in-progress / same-day candle.
-    let idx = -1;
-    for (let i = series.length - 1; i >= 0; i--) {
-      if (series[i].day < today) { idx = i; break; }
-    }
-    if (idx < 1) idx = series.length - 1; // fallback: last completed candle
+    // Most recent COMPLETED session. Only drop the last candle when it is
+    // *today's* still-open session (marketState REGULAR); a session that has
+    // already closed — even if its local date equals "today" because the user
+    // is in another timezone (e.g. a Korean morning vs the US previous close)
+    // — must be kept.
+    const last = series[series.length - 1];
+    const open = String(meta.marketState ?? '') === 'REGULAR';
+    let idx = (last.day === todayLocal && open)
+        ? series.length - 2
+        : series.length - 1;
+    if (idx < 1) idx = series.length - 1;
     if (idx < 1) return null;
 
     const cur = series[idx];

@@ -1,0 +1,12 @@
+name: Check prevday
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths: [tool/check_prevday.py, .github/workflows/check-prevday.yml]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/check_prevday.py
