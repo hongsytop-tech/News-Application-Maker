@@ -1,0 +1,17 @@
+name: Test news filter
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "claude/**"
+    paths:
+      - tool/test_filter.py
+      - .github/workflows/test-filter.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/test_filter.py
