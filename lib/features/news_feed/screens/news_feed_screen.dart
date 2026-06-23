@@ -23,7 +23,7 @@ class NewsFeedScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('News'),
+        title: const Text('뉴스 피드'),
         actions: [
           IconButton(
             tooltip: '검색',

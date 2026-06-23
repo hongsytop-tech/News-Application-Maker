@@ -1,4 +1,5 @@
 import 'package:news_application_maker/core/supabase/supabase_service.dart';
+import 'package:news_application_maker/features/market/models/market_index.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 
 /// Calls the Claude-backed Edge Functions (`ai-summarize`, `ai-taste`) through
@@ -66,6 +67,21 @@ class AiService {
       );
     }
     throw const AiException('Could not interpret the search request.');
+  }
+
+  /// Fetches previous-day index moves (KOSPI/KOSDAQ/S&P/NASDAQ/DOW) and an AI
+  /// market analysis from the `market-brief` Edge Function.
+  Future<({List<MarketIndex> indices, String analysis})> fetchMarketBrief() async {
+    final res = await SupabaseService.client.functions.invoke('market-brief');
+    final data = res.data;
+    if (data is Map) {
+      final indices = [
+        for (final e in (data['indices'] as List? ?? const []))
+          MarketIndex.fromJson((e as Map).cast<String, dynamic>()),
+      ];
+      return (indices: indices, analysis: (data['analysis'] ?? '').toString());
+    }
+    throw const AiException('Could not load the market briefing.');
   }
 
   /// Loads the user's last-computed taste profile from `user_taste` without
