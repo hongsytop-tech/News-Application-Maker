@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:news_application_maker/core/router/app_router.dart';
 import 'package:news_application_maker/core/utils/lang.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
@@ -13,6 +15,7 @@ import 'package:news_application_maker/features/news_feed/providers/news_feed_pr
 import 'package:news_application_maker/features/news_feed/widgets/reaction_buttons.dart';
 import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/services/event_service.dart';
+import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
 class ArticleDetailScreen extends ConsumerWidget {
   const ArticleDetailScreen({required this.article, super.key});
@@ -32,6 +35,16 @@ class ArticleDetailScreen extends ConsumerWidget {
     if (!wasBookmarked) {
       // Bookmarking is a strong positive preference signal.
       ref.read(recommendationProvider.notifier).record(EventType.bookmark, article);
+    }
+  }
+
+  /// Mark as read (move to 확인한 뉴스) and return to the list, where it's hidden.
+  void _confirm(BuildContext context, WidgetRef ref) {
+    ref.read(trashProvider.notifier).trash(article);
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(Routes.feed);
     }
   }
 
@@ -60,6 +73,11 @@ class ArticleDetailScreen extends ConsumerWidget {
             tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
             icon: Icon(bookmarked ? Icons.bookmark : Icons.bookmark_outline),
             onPressed: () => _toggleBookmark(ref),
+          ),
+          IconButton(
+            tooltip: '확인 (목록에서 숨기기)',
+            icon: const Icon(Icons.check_circle_outline),
+            onPressed: () => _confirm(context, ref),
           ),
           IconButton(
             tooltip: 'Open original',
