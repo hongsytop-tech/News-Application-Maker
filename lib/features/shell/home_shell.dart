@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:news_application_maker/core/router/app_router.dart';
 
 /// Persistent scaffold hosting the bottom navigation bar shared by the main
-/// tabs, plus a shared "scroll to top" button.
+/// tabs, plus a shared "scroll to top" button that works on every menu.
 class HomeShell extends StatefulWidget {
   const HomeShell({required this.child, super.key});
 
@@ -22,30 +22,31 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  // Shared by every tab's primary ListView (see PrimaryScrollController below),
-  // so a single "to top" button works on all menus.
-  final _scrollController = ScrollController();
+  // Captured from scroll notifications so the button works for whatever
+  // scrollable the active tab shows, without relying on PrimaryScrollController
+  // inheritance (which is unreliable on web).
+  ScrollPosition? _position;
   bool _showTop = false;
+  String? _lastLocation;
 
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false;
+    final ctx = n.context;
+    if (ctx != null) _position = Scrollable.maybeOf(ctx)?.position;
+    final show = n.metrics.pixels > 300;
+    if (show != _showTop && mounted) setState(() => _showTop = show);
+    return false;
   }
 
-  void _onScroll() {
-    final show = _scrollController.hasClients && _scrollController.offset > 400;
-    if (show != _showTop) setState(() => _showTop = show);
+  void _toTop() {
+    final p = _position;
+    if (p != null && p.hasPixels) {
+      p.animateTo(0,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  int _indexFor(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
+  int _indexFor(String location) {
     if (location.startsWith(Routes.market)) return 1;
     if (location.startsWith(Routes.bookmarks)) return 2;
     if (location.startsWith(Routes.mypage)) return 3;
@@ -54,42 +55,38 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final index = _indexFor(context);
-    // Force inheritance on every platform (incl. web) so each tab's default
-    // ListView attaches to our shared controller.
-    return PrimaryScrollController(
-      controller: _scrollController,
-      automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
-      child: Scaffold(
-        body: widget.child,
-        floatingActionButton: _showTop
-            ? FloatingActionButton.small(
-                tooltip: '맨 위로',
-                onPressed: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                },
-                child: const Icon(Icons.arrow_upward),
-              )
-            : null,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: index,
-          onDestinationSelected: (i) =>
-              context.go(HomeShell._destinations[i].path),
-          destinations: [
-            for (final d in HomeShell._destinations)
-              NavigationDestination(
-                icon: Icon(d.icon),
-                selectedIcon: Icon(d.selected),
-                label: d.label,
-              ),
-          ],
-        ),
+    final location = GoRouterState.of(context).matchedLocation;
+    // Reset the button state when switching tabs (new screen starts at top).
+    if (location != _lastLocation) {
+      _lastLocation = location;
+      _showTop = false;
+      _position = null;
+    }
+
+    return Scaffold(
+      body: NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: widget.child,
+      ),
+      floatingActionButton: _showTop
+          ? FloatingActionButton.small(
+              tooltip: '맨 위로',
+              onPressed: _toTop,
+              child: const Icon(Icons.arrow_upward),
+            )
+          : null,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _indexFor(location),
+        onDestinationSelected: (i) =>
+            context.go(HomeShell._destinations[i].path),
+        destinations: [
+          for (final d in HomeShell._destinations)
+            NavigationDestination(
+              icon: Icon(d.icon),
+              selectedIcon: Icon(d.selected),
+              label: d.label,
+            ),
+        ],
       ),
     );
   }
