@@ -16,42 +16,88 @@ final marketServiceProvider = Provider<MarketService>((ref) {
   return MarketService(ref.watch(localStorageProvider));
 });
 
-/// State of the market screen. The snapshot persists until the user refreshes.
+/// State of the market screen: a history of daily briefings, the day currently
+/// being viewed, and load/error flags.
 class MarketState {
-  const MarketState({this.snapshot, this.loading = false, this.error});
+  const MarketState({
+    this.history = const [],
+    this.selectedKey,
+    this.loading = false,
+    this.error,
+  });
 
-  final MarketSnapshot? snapshot;
+  final List<MarketSnapshot> history; // newest first
+  final String? selectedKey; // yyyy-MM-dd being viewed
   final bool loading;
   final String? error;
 
-  MarketState copyWith({
-    MarketSnapshot? snapshot,
-    bool? loading,
-    String? error,
-  }) =>
-      MarketState(
-        snapshot: snapshot ?? this.snapshot,
-        loading: loading ?? this.loading,
-        error: error,
-      );
+  MarketSnapshot? get latest => history.isEmpty ? null : history.first;
+
+  MarketSnapshot? get selected {
+    for (final s in history) {
+      if (marketDayKey(s.updatedAt) == selectedKey) return s;
+    }
+    return latest;
+  }
+
+  bool get viewingPast =>
+      latest != null && selectedKey != marketDayKey(latest!.updatedAt);
 }
 
 class MarketController extends StateNotifier<MarketState> {
   MarketController(this._ref) : super(const MarketState()) {
-    final cached = _ref.read(marketServiceProvider).load();
-    if (cached != null) state = MarketState(snapshot: cached);
+    final history = _ref.read(marketServiceProvider).loadAll();
+    state = MarketState(
+      history: history,
+      selectedKey:
+          history.isEmpty ? null : marketDayKey(history.first.updatedAt),
+    );
+    _maybeAutoUpdate();
   }
 
   final Ref _ref;
 
-  /// Recompute the briefing (only on explicit user request).
+  /// View a specific day's briefing.
+  void selectKey(String key) => state = MarketState(
+        history: state.history,
+        selectedKey: key,
+        loading: state.loading,
+        error: state.error,
+      );
+
+  /// The most recent 7:00 boundary (today's 7am, or yesterday's if before 7am).
+  DateTime _last7am(DateTime now) {
+    var seven = DateTime(now.year, now.month, now.day, 7);
+    if (now.isBefore(seven)) seven = seven.subtract(const Duration(days: 1));
+    return seven;
+  }
+
+  /// Auto-refresh once per morning (at/after 7am) when the screen is opened.
+  /// (PWAs can't run in the background, so we catch up on open.)
+  Future<void> _maybeAutoUpdate() async {
+    if (state.loading) return;
+    final last = state.latest?.updatedAt;
+    if (last == null || last.isBefore(_last7am(DateTime.now()))) {
+      await refresh();
+    }
+  }
+
+  /// Recompute today's briefing. Articles seen in any earlier briefing are
+  /// excluded so each day only shows newly surfaced stories.
   Future<void> refresh() async {
-    state = state.copyWith(loading: true);
+    state = MarketState(
+      history: state.history,
+      selectedKey: state.selectedKey,
+      loading: true,
+    );
     try {
-      final indicesAnalysis = _fetchBrief();
-      final articles = _fetchNews();
-      final brief = await indicesAnalysis;
-      final news = await articles;
+      final brief = await _fetchBrief();
+      final seen = <String>{
+        for (final s in state.history)
+          for (final a in s.articles) a.url,
+      };
+      final news =
+          (await _fetchNews()).where((a) => !seen.contains(a.url)).toList();
 
       final snapshot = MarketSnapshot(
         indices: brief.indices,
@@ -59,10 +105,19 @@ class MarketController extends StateNotifier<MarketState> {
         articles: news,
         updatedAt: DateTime.now(),
       );
-      await _ref.read(marketServiceProvider).save(snapshot);
-      state = MarketState(snapshot: snapshot, loading: false);
+      final history = await _ref.read(marketServiceProvider).upsert(snapshot);
+      state = MarketState(
+        history: history,
+        selectedKey: marketDayKey(snapshot.updatedAt),
+        loading: false,
+      );
     } catch (e) {
-      state = state.copyWith(loading: false, error: e.toString());
+      state = MarketState(
+        history: state.history,
+        selectedKey: state.selectedKey,
+        loading: false,
+        error: e.toString(),
+      );
     }
   }
 
@@ -72,7 +127,6 @@ class MarketController extends StateNotifier<MarketState> {
     try {
       return await ai.fetchMarketBrief();
     } catch (_) {
-      // Indices/analysis are best-effort; the news section still loads.
       return (indices: <MarketIndex>[], analysis: '');
     }
   }

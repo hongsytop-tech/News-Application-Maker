@@ -6,31 +6,47 @@ import 'package:intl/intl.dart';
 import 'package:news_application_maker/core/router/app_router.dart';
 import 'package:news_application_maker/features/market/models/market_index.dart';
 import 'package:news_application_maker/features/market/providers/market_provider.dart';
+import 'package:news_application_maker/features/market/services/market_service.dart';
 import 'package:news_application_maker/features/news_feed/widgets/article_card.dart';
 import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/services/event_service.dart';
 
 /// "주식 시황": previous-day index moves, an AI market analysis, and the week's
-/// key economy/industry articles. Updates only when the user asks; otherwise it
-/// shows the last update and its time.
+/// key economy/industry articles. Auto-updates each morning (≈7am, on open),
+/// keeps a per-day history browsable via a calendar, and never repeats an
+/// article that appeared in an earlier briefing.
 class MarketScreen extends ConsumerWidget {
   const MarketScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(marketControllerProvider);
-    final snapshot = state.snapshot;
+    final controller = ref.read(marketControllerProvider.notifier);
+    final snapshot = state.selected;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('주식 시황')),
+      appBar: AppBar(
+        title: const Text('주식 시황'),
+        actions: [
+          IconButton(
+            tooltip: '날짜별 시황',
+            icon: const Icon(Icons.calendar_month),
+            onPressed: state.history.isEmpty
+                ? null
+                : () => _pickDate(context, controller, state),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
           _UpdateBar(
-            updatedAt: snapshot?.updatedAt,
+            updatedAt: state.latest?.updatedAt,
             loading: state.loading,
-            onUpdate: () => ref.read(marketControllerProvider.notifier).refresh(),
+            onUpdate: controller.refresh,
           ),
+          if (state.viewingPast && snapshot != null)
+            _PastBanner(date: snapshot.updatedAt),
           if (state.error != null)
             Padding(
               padding: const EdgeInsets.all(8),
@@ -41,19 +57,19 @@ class MarketScreen extends ConsumerWidget {
             const _EmptyState()
           else if (snapshot != null) ...[
             const SizedBox(height: 8),
-            _SectionTitle('주요 지수 (전일 대비)'),
+            const _SectionTitle('주요 지수 (전일 대비)'),
             _IndexGrid(indices: snapshot.indices),
             const SizedBox(height: 16),
             if (snapshot.analysis.isNotEmpty) ...[
-              _SectionTitle('시장 분석'),
+              const _SectionTitle('시장 분석'),
               _AnalysisCard(text: snapshot.analysis),
               const SizedBox(height: 16),
             ],
-            _SectionTitle('이번 주 주요 경제·산업 기사'),
+            const _SectionTitle('주요 경제·산업 기사'),
             if (snapshot.articles.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('표시할 기사가 없습니다.'),
+                child: Text('이번 업데이트에 새로 추가된 기사가 없습니다.'),
               )
             else
               for (final a in snapshot.articles)
@@ -74,6 +90,32 @@ class MarketScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _pickDate(
+    BuildContext context,
+    MarketController controller,
+    MarketState state,
+  ) async {
+    final keys = {for (final s in state.history) marketDayKey(s.updatedAt)};
+    final dates = state.history
+        .map((s) => DateTime(
+            s.updatedAt.year, s.updatedAt.month, s.updatedAt.day))
+        .toList();
+    final first = dates.reduce((a, b) => a.isBefore(b) ? a : b);
+    final last = dates.reduce((a, b) => a.isAfter(b) ? a : b);
+    final current = state.selected?.updatedAt ?? last;
+    final initial = DateTime(current.year, current.month, current.day);
+
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: first,
+      lastDate: last,
+      initialDate: initial,
+      selectableDayPredicate: (d) => keys.contains(marketDayKey(d)),
+      helpText: '시황 날짜 선택',
+    );
+    if (picked != null) controller.selectKey(marketDayKey(picked));
+  }
 }
 
 class _UpdateBar extends StatelessWidget {
@@ -91,7 +133,7 @@ class _UpdateBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final label = updatedAt == null
-        ? '아직 업데이트하지 않음'
+        ? '아직 업데이트하지 않음 · 매일 아침 7시 자동 갱신'
         : '최근 업데이트 ${DateFormat('M월 d일 HH:mm').format(updatedAt!.toLocal())}';
     return Row(
       children: [
@@ -110,6 +152,32 @@ class _UpdateBar extends StatelessWidget {
           label: Text(loading ? '업데이트 중' : '업데이트'),
         ),
       ],
+    );
+  }
+}
+
+class _PastBanner extends StatelessWidget {
+  const _PastBanner({required this.date});
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history, size: 18),
+          const SizedBox(width: 8),
+          Text('${DateFormat('M월 d일').format(date.toLocal())} 시황을 보고 있습니다',
+              style: theme.textTheme.bodyMedium),
+        ],
+      ),
     );
   }
 }
@@ -146,7 +214,7 @@ class _IndexCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final up = index.isUp;
-    final color = up ? Colors.red : Colors.blue; // KR convention: 상승=빨강
+    final color = up ? Colors.red : Colors.blue; // KR: 상승=빨강
     final sign = up ? '▲' : '▼';
     return Card(
       margin: EdgeInsets.zero,
@@ -235,6 +303,9 @@ class _EmptyState extends StatelessWidget {
               size: 56, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 12),
           const Text('"업데이트"를 눌러 시황을 불러오세요.'),
+          const SizedBox(height: 4),
+          Text('이후에는 매일 아침 7시에 자동 갱신됩니다.',
+              style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
