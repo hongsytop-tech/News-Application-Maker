@@ -45,7 +45,7 @@ type Translation = { title: string; summary: string };
 
 async function getCached(url: string): Promise<Translation | null> {
   const r = await fetch(
-    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_translate&url=eq.${encodeURIComponent(url)}&select=payload`,
+    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_translate_v2&url=eq.${encodeURIComponent(url)}&select=payload`,
     { headers: restHeaders },
   );
   if (!r.ok) return null;
@@ -62,7 +62,7 @@ async function setCached(url: string, value: Translation) {
     method: 'POST',
     headers: { ...restHeaders, Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({
-      mode: 'ai_translate',
+      mode: 'ai_translate_v2',
       url,
       payload: value,
       fetched_at: new Date().toISOString(),
@@ -81,12 +81,20 @@ async function claude(title: string, summary: string): Promise<Translation> {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5',
-      max_tokens: 500,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 700,
       system:
-        'You translate foreign news for a Korean reader. Translate the given ' +
-        'headline and summary into natural, concise Korean. Keep proper nouns ' +
-        'accurate. Respond with ONLY valid JSON of the shape ' +
+        'You are a professional Korean news translator. Translate the given ' +
+        'foreign news headline and summary into natural, fluent Korean as a ' +
+        'Korean newsroom would write it — not a literal word-for-word render. ' +
+        'Guidelines: (1) Use natural Korean news headline style for "title" ' +
+        '(concise, no trailing period). (2) Keep proper nouns, organizations, ' +
+        'numbers, places and quotes accurate; transliterate well-known names ' +
+        'to their established Korean forms (e.g. Trump → 트럼프). (3) Preserve ' +
+        'the original nuance and tone; render English idioms/headlinese into ' +
+        'equivalent natural Korean rather than translating literally. ' +
+        '(4) Do not add information that is not in the source. ' +
+        'Respond with ONLY valid JSON of the shape ' +
         '{"title": "<번역된 제목>", "summary": "<번역된 요약>"}. ' +
         'If the summary is empty, return an empty string for it. ' +
         'No prose or code fences outside the JSON.',
