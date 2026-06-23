@@ -30,7 +30,7 @@ const restHeaders = {
 
 async function getCached(url: string): Promise<string | null> {
   const r = await fetch(
-    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_summary&url=eq.${encodeURIComponent(url)}&select=payload`,
+    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_summary_v2&url=eq.${encodeURIComponent(url)}&select=payload`,
     { headers: restHeaders },
   );
   if (!r.ok) return null;
@@ -43,7 +43,7 @@ async function setCached(url: string, summary: string) {
     method: 'POST',
     headers: { ...restHeaders, Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({
-      mode: 'ai_summary',
+      mode: 'ai_summary_v2',
       url,
       payload: { summary },
       fetched_at: new Date().toISOString(),
@@ -63,13 +63,15 @@ async function claude(prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
-      max_tokens: 400,
+      max_tokens: 900,
       system:
-        'You are a concise news editor for a Korean reader. Summarize the ' +
-        'article in exactly three short bullet points a busy reader can scan ' +
-        'in seconds. Always respond in Korean (한국어), regardless of the ' +
-        'article\'s original language. Output only the bullets, each prefixed ' +
-        'with "• ".',
+        'You are a news editor for a Korean reader. Summarize the article in ' +
+        '6 to 8 informative bullet points covering the key facts, background ' +
+        'context, and why it matters. Each bullet should be a full, specific ' +
+        'sentence (not a fragment). Then add a final line starting with ' +
+        '"한줄평: " giving a one-sentence takeaway. Always respond in Korean ' +
+        '(한국어), regardless of the article\'s original language. Output only ' +
+        'the bullets (each prefixed with "• ") and the 한줄평 line.',
       messages: [{ role: 'user', content: prompt }],
     }),
   });
