@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:news_application_maker/core/utils/dedupe.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
@@ -59,12 +60,13 @@ final newsFeedProvider =
   ];
 
   final fetched = await service.fetchAll(sources);
-  // De-duplicate by url so the same story from multiple feeds appears once.
+  // De-duplicate by url, then collapse near-identical stories carried by
+  // different outlets (same content, different 언론사).
   final seen = <String>{};
-  final articles = [
+  final articles = dedupeByContent([
     for (final a in fetched)
       if (seen.add(a.url)) a,
-  ];
+  ]);
 
   // Ranking is recency-based, shifted by an hour offset that blends the AI
   // taste profile (category + specific keyword + source) with an explicit

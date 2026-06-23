@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:news_application_maker/core/utils/dedupe.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
@@ -52,7 +53,7 @@ final searchResultsProvider =
         NewsSource.forSearch(reg == NewsRegion.ko ? koQuery : enQuery, reg),
   ];
 
-  final articles = await service.fetchAll(sources);
+  final articles = dedupeByContent(await service.fetchAll(sources));
   articles.sort((a, b) {
     final byScore = scoreOf(b).compareTo(scoreOf(a));
     if (byScore != 0) return byScore;
