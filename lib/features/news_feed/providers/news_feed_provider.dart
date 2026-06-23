@@ -13,31 +13,40 @@ final newsServiceProvider = Provider<NewsService>((ref) {
   return service;
 });
 
-/// The category tab the user is viewing. `null` resolves to the first enabled
-/// category (see [effectiveCategoryProvider]).
+/// The category tab the user is viewing. `null` means "전체" — every category
+/// the user enabled in Settings, merged together (the default view).
 final selectedCategoryProvider = StateProvider<String?>((ref) => null);
 
 /// Region filter: `null` shows both domestic and international.
 final regionFilterProvider = StateProvider<NewsRegion?>((ref) => null);
 
-/// Resolves the category actually shown, honoring the user's enabled set.
-final effectiveCategoryProvider = Provider<String>((ref) {
-  final enabled = ref.watch(enabledCategoriesProvider);
-  final selected = ref.watch(selectedCategoryProvider);
-  if (selected != null && enabled.any((c) => c.id == selected)) return selected;
-  return enabled.first.id;
-});
-
-/// The feed for the active category + region, re-ranked by learned preference.
+/// The feed for the active selection + region, re-ranked by learned preference.
+/// When no specific category is selected, all enabled categories are merged.
 final newsFeedProvider =
     FutureProvider.autoDispose<List<NewsArticle>>((ref) async {
   final service = ref.watch(newsServiceProvider);
-  final categoryId = ref.watch(effectiveCategoryProvider);
+  final enabled = ref.watch(enabledCategoriesProvider);
+  final selected = ref.watch(selectedCategoryProvider);
   final region = ref.watch(regionFilterProvider);
   final scoreOf = ref.watch(scorerProvider);
 
-  final sources = NewsSource.forCategoryId(categoryId, region: region);
-  final articles = await service.fetchAll(sources);
+  // A specific (still-enabled) category, or "전체" → every enabled category.
+  final showAll = selected == null || !enabled.any((c) => c.id == selected);
+  final sources = <NewsSource>[
+    if (showAll)
+      for (final c in enabled)
+        ...NewsSource.forCategoryId(c.id, region: region)
+    else
+      ...NewsSource.forCategoryId(selected!, region: region),
+  ];
+
+  final fetched = await service.fetchAll(sources);
+  // De-duplicate by url so the same story from multiple feeds appears once.
+  final seen = <String>{};
+  final articles = [
+    for (final a in fetched)
+      if (seen.add(a.url)) a,
+  ];
 
   // Stable re-rank: preference score first, recency as tiebreaker.
   articles.sort((a, b) {

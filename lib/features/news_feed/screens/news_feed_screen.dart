@@ -81,10 +81,11 @@ class _FilterBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final categories = ref.watch(enabledCategoriesProvider);
-    final selected = ref.watch(effectiveCategoryProvider);
+    final selected = ref.watch(selectedCategoryProvider); // null = 전체
     final region = ref.watch(regionFilterProvider);
     final expanded = ref.watch(_categoriesExpandedProvider);
-    final selectedLabel = NewsCategory.byId(selected)?.label ?? '';
+    final selectedLabel =
+        selected == null ? '전체' : (NewsCategory.byId(selected)?.label ?? '전체');
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
@@ -127,6 +128,14 @@ class _FilterBar extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 4,
                 children: [
+                  ChoiceChip(
+                    label: const Text('전체'),
+                    selected: selected == null,
+                    showCheckmark: false,
+                    onSelected: (_) {
+                      ref.read(selectedCategoryProvider.notifier).state = null;
+                    },
+                  ),
                   for (final c in categories)
                     ChoiceChip(
                       label: Text(c.label),
