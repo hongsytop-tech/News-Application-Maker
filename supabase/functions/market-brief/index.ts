@@ -1,10 +1,10 @@
 // Supabase Edge Function: market-brief
 //
-// Returns previous-day moves for major KR/US indices (from Yahoo Finance) plus
-// a short AI market analysis (Claude) that also references recent economy
-// headlines. Zero external imports so the dashboard bundler never times out.
+// Returns previous-day moves for major KR/US indices (Yahoo Finance) with the
+// quote date, plus separate AI market analyses for Korea and the US (Claude)
+// that reference recent economy headlines. Zero external imports.
 //
-// Request: POST (no body needed). Response: { indices: [...], analysis, generated_at }
+// Request: POST. Response: { indices:[...], analysis_kr, analysis_us, generated_at }
 // Deploy with "Verify JWT" OFF. Required secret: ANTHROPIC_API_KEY.
 
 const corsHeaders = {
@@ -20,23 +20,36 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function extractJson(s: string): string {
+  let t = s.trim();
+  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) t = fence[1].trim();
+  const first = t.indexOf('{');
+  const last = t.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) t = t.slice(first, last + 1);
+  return t;
+}
+
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
 
-const INDICES: { symbol: string; name: string }[] = [
-  { symbol: '^KS11', name: '코스피' },
-  { symbol: '^KQ11', name: '코스닥' },
-  { symbol: '^GSPC', name: 'S&P 500' },
-  { symbol: '^IXIC', name: '나스닥' },
-  { symbol: '^DJI', name: '다우' },
+const INDICES = [
+  { symbol: '^KS11', name: '코스피', market: 'kr' },
+  { symbol: '^KQ11', name: '코스닥', market: 'kr' },
+  { symbol: '^GSPC', name: 'S&P 500', market: 'us' },
+  { symbol: '^IXIC', name: '나스닥', market: 'us' },
+  { symbol: '^DJI', name: '다우', market: 'us' },
 ];
 
-type Idx = { symbol: string; name: string; price: number; change: number; change_percent: number };
+type Idx = {
+  symbol: string; name: string; market: string;
+  price: number; change: number; change_percent: number; as_of: string | null;
+};
 
-async function fetchIndex(symbol: string, name: string): Promise<Idx | null> {
+async function fetchIndex(s: { symbol: string; name: string; market: string }): Promise<Idx | null> {
   try {
     const url =
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`;
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s.symbol)}?range=5d&interval=1d`;
     const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
     if (!r.ok) return null;
     const body = await r.json();
@@ -46,10 +59,11 @@ async function fetchIndex(symbol: string, name: string): Promise<Idx | null> {
     const prev = Number(meta.chartPreviousClose ?? meta.previousClose);
     if (!isFinite(price) || !isFinite(prev) || prev === 0) return null;
     const change = price - prev;
+    const ts = Number(meta.regularMarketTime);
     return {
-      symbol, name, price,
-      change,
-      change_percent: (change / prev) * 100,
+      symbol: s.symbol, name: s.name, market: s.market,
+      price, change, change_percent: (change / prev) * 100,
+      as_of: isFinite(ts) ? new Date(ts * 1000).toISOString() : null,
     };
   } catch (_) {
     return null;
@@ -79,14 +93,16 @@ async function fetchHeadlines(): Promise<string[]> {
   }
 }
 
-async function analyze(indices: Idx[], headlines: string[]): Promise<string> {
+async function analyze(indices: Idx[], headlines: string[]): Promise<{ kr: string; us: string }> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey || indices.length === 0) return '';
-  const idxText = indices
-    .map((i) => `${i.name}: ${i.price.toFixed(2)} (${i.change >= 0 ? '+' : ''}${i.change_percent.toFixed(2)}%)`)
-    .join(', ');
+  if (!apiKey || indices.length === 0) return { kr: '', us: '' };
+  const fmt = (i: Idx) =>
+    `${i.name}: ${i.price.toFixed(2)} (${i.change >= 0 ? '+' : ''}${i.change_percent.toFixed(2)}%)`;
+  const kr = indices.filter((i) => i.market === 'kr').map(fmt).join(', ');
+  const us = indices.filter((i) => i.market === 'us').map(fmt).join(', ');
   const prompt =
-    `전일 주요 지수: ${idxText}\n\n최근 경제 헤드라인:\n- ${headlines.join('\n- ')}`;
+    `[한국 지수] ${kr || '데이터 없음'}\n[미국 지수] ${us || '데이터 없음'}\n\n` +
+    `[최근 한국 경제 헤드라인]\n- ${headlines.join('\n- ')}`;
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -97,21 +113,24 @@ async function analyze(indices: Idx[], headlines: string[]): Promise<string> {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
-        max_tokens: 500,
+        max_tokens: 800,
         system:
-          '당신은 증시 애널리스트입니다. 주어진 전일 지수 등락과 최근 경제 헤드라인을 바탕으로, ' +
-          '한국 투자자를 위한 시황 분석을 한국어로 4~6문장으로 정리하세요. 한국/미국 시장 분위기, ' +
-          '주요 동인, 유의할 점을 균형 있게 다루되 단정적 투자 권유는 피하세요. 평이한 문장만 출력.',
+          '당신은 증시 애널리스트입니다. 주어진 전일 지수와 헤드라인을 바탕으로 한국 시장과 ' +
+          '미국 시장 시황을 각각 한국어로 3~5문장씩 정리하세요. 시장 분위기·주요 동인·유의점을 ' +
+          '균형 있게 다루되 단정적 투자 권유는 피하세요. 반드시 JSON만 출력: ' +
+          '{"kr": "<한국 시장 분석>", "us": "<미국 시장 분석>"}. JSON 외 텍스트 금지.',
         messages: [{ role: 'user', content: prompt }],
       }),
     });
-    if (!res.ok) return '';
+    if (!res.ok) return { kr: '', us: '' };
     const body = await res.json();
-    if (body.stop_reason === 'refusal') return '';
+    if (body.stop_reason === 'refusal') return { kr: '', us: '' };
     // deno-lint-ignore no-explicit-any
-    return (body.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    const text = (body.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').trim();
+    const p = JSON.parse(extractJson(text));
+    return { kr: String(p.kr ?? ''), us: String(p.us ?? '') };
   } catch (_) {
-    return '';
+    return { kr: '', us: '' };
   }
 }
 
@@ -121,12 +140,17 @@ Deno.serve(async (req) => {
 
   try {
     const [indicesRaw, headlines] = await Promise.all([
-      Promise.all(INDICES.map((i) => fetchIndex(i.symbol, i.name))),
+      Promise.all(INDICES.map(fetchIndex)),
       fetchHeadlines(),
     ]);
     const indices = indicesRaw.filter((i): i is Idx => i !== null);
     const analysis = await analyze(indices, headlines);
-    return json({ indices, analysis, generated_at: new Date().toISOString() });
+    return json({
+      indices,
+      analysis_kr: analysis.kr,
+      analysis_us: analysis.us,
+      generated_at: new Date().toISOString(),
+    });
   } catch (err) {
     return json({ error: String(err) }, 502);
   }

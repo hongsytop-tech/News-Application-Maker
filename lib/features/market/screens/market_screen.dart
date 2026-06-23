@@ -58,11 +58,15 @@ class MarketScreen extends ConsumerWidget {
           else if (snapshot != null) ...[
             const SizedBox(height: 8),
             const _SectionTitle('주요 지수 (전일 대비)'),
-            _IndexGrid(indices: snapshot.indices),
+            _IndexSection(indices: snapshot.indices),
             const SizedBox(height: 16),
-            if (snapshot.analysis.isNotEmpty) ...[
+            if (snapshot.analysisKr.isNotEmpty ||
+                snapshot.analysisUs.isNotEmpty) ...[
               const _SectionTitle('시장 분석'),
-              _AnalysisCard(text: snapshot.analysis),
+              if (snapshot.analysisKr.isNotEmpty)
+                _AnalysisCard(title: '🇰🇷 한국 시장', text: snapshot.analysisKr),
+              if (snapshot.analysisUs.isNotEmpty)
+                _AnalysisCard(title: '🇺🇸 미국 시장', text: snapshot.analysisUs),
               const SizedBox(height: 16),
             ],
             const _SectionTitle('주요 경제·산업 기사'),
@@ -182,8 +186,9 @@ class _PastBanner extends StatelessWidget {
   }
 }
 
-class _IndexGrid extends StatelessWidget {
-  const _IndexGrid({required this.indices});
+/// Compact index display grouped by market (한국 / 미국) with the quote date.
+class _IndexSection extends StatelessWidget {
+  const _IndexSection({required this.indices});
   final List<MarketIndex> indices;
 
   @override
@@ -194,20 +199,58 @@ class _IndexGrid extends StatelessWidget {
         child: Text('지수 데이터를 불러오지 못했습니다. (market-brief 함수 배포 필요)'),
       );
     }
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 2.4,
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      children: [for (final i in indices) _IndexCard(index: i)],
+    final kr = indices.where((i) => i.market == 'kr').toList();
+    final us = indices.where((i) => i.market != 'kr').toList();
+    return Column(
+      children: [
+        if (kr.isNotEmpty) _Group(label: '한국', items: kr),
+        if (kr.isNotEmpty && us.isNotEmpty) const SizedBox(height: 8),
+        if (us.isNotEmpty) _Group(label: '미국', items: us),
+      ],
     );
   }
 }
 
-class _IndexCard extends StatelessWidget {
-  const _IndexCard({required this.index});
+class _Group extends StatelessWidget {
+  const _Group({required this.label, required this.items});
+  final String label;
+  final List<MarketIndex> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dates = items.map((e) => e.asOf).whereType<DateTime>();
+    final asOf = dates.isEmpty ? null : dates.first;
+    final ref = asOf == null
+        ? ''
+        : ' · 기준 ${DateFormat('M월 d일').format(asOf.toLocal())}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+          child: Text('$label$ref',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: theme.colorScheme.outline)),
+        ),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _IndexRow(index: items[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IndexRow extends StatelessWidget {
+  const _IndexRow({required this.index});
   final MarketIndex index;
 
   @override
@@ -216,35 +259,39 @@ class _IndexCard extends StatelessWidget {
     final up = index.isUp;
     final color = up ? Colors.red : Colors.blue; // KR: 상승=빨강
     final sign = up ? '▲' : '▼';
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(index.name, style: theme.textTheme.labelLarge),
-            const SizedBox(height: 2),
-            Text(
-              NumberFormat('#,##0.00').format(index.price),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            Text(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(index.name,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+          ),
+          Text(
+            NumberFormat('#,##0.00').format(index.price),
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 120,
+            child: Text(
               '$sign ${index.change.abs().toStringAsFixed(2)} '
               '(${index.changePercent.toStringAsFixed(2)}%)',
+              textAlign: TextAlign.right,
               style: theme.textTheme.bodySmall?.copyWith(color: color),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _AnalysisCard extends StatelessWidget {
-  const _AnalysisCard({required this.text});
+  const _AnalysisCard({required this.title, required this.text});
+  final String title;
   final String text;
 
   @override
@@ -254,16 +301,15 @@ class _AnalysisCard extends StatelessWidget {
       color: theme.colorScheme.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.auto_awesome,
-                size: 18, color: theme.colorScheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(text,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
-            ),
+            Text(title,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(text,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
           ],
         ),
       ),

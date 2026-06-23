@@ -25,3 +25,15 @@ bool _allowed(String title) {
   if (pub == null) return false;
   return kDomesticOutlets.any((o) => pub.contains(o));
 }
+
+/// Title tags that mark non-article notices we don't want in the feed.
+const kJunkTags = ['[부고]', '[인사]'];
+
+/// Drops obituary/personnel notices (and similar) by their title tag.
+List<NewsArticle> dropJunkArticles(List<NewsArticle> articles) {
+  return [
+    for (final a in articles)
+      if (!kJunkTags.any((t) => a.title.contains(t))) a,
+  ];
+}
+

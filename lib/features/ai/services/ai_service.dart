@@ -69,9 +69,10 @@ class AiService {
     throw const AiException('Could not interpret the search request.');
   }
 
-  /// Fetches previous-day index moves (KOSPI/KOSDAQ/S&P/NASDAQ/DOW) and an AI
-  /// market analysis from the `market-brief` Edge Function.
-  Future<({List<MarketIndex> indices, String analysis})> fetchMarketBrief() async {
+  /// Fetches previous-day index moves (KOSPI/KOSDAQ/S&P/NASDAQ/DOW) and AI
+  /// market analyses (KR/US) from the `market-brief` Edge Function.
+  Future<({List<MarketIndex> indices, String analysisKr, String analysisUs})>
+      fetchMarketBrief() async {
     final res = await SupabaseService.client.functions.invoke('market-brief');
     final data = res.data;
     if (data is Map) {
@@ -79,7 +80,11 @@ class AiService {
         for (final e in (data['indices'] as List? ?? const []))
           MarketIndex.fromJson((e as Map).cast<String, dynamic>()),
       ];
-      return (indices: indices, analysis: (data['analysis'] ?? '').toString());
+      return (
+        indices: indices,
+        analysisKr: (data['analysis_kr'] ?? '').toString(),
+        analysisUs: (data['analysis_us'] ?? '').toString(),
+      );
     }
     throw const AiException('Could not load the market briefing.');
   }

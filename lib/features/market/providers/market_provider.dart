@@ -101,7 +101,8 @@ class MarketController extends StateNotifier<MarketState> {
 
       final snapshot = MarketSnapshot(
         indices: brief.indices,
-        analysis: brief.analysis,
+        analysisKr: brief.analysisKr,
+        analysisUs: brief.analysisUs,
         articles: news,
         updatedAt: DateTime.now(),
       );
@@ -121,13 +122,15 @@ class MarketController extends StateNotifier<MarketState> {
     }
   }
 
-  Future<({List<MarketIndex> indices, String analysis})> _fetchBrief() async {
+  Future<({List<MarketIndex> indices, String analysisKr, String analysisUs})>
+      _fetchBrief() async {
     final ai = _ref.read(aiServiceProvider);
-    if (!ai.isAvailable) return (indices: <MarketIndex>[], analysis: '');
+    final empty = (indices: <MarketIndex>[], analysisKr: '', analysisUs: '');
+    if (!ai.isAvailable) return empty;
     try {
       return await ai.fetchMarketBrief();
     } catch (_) {
-      return (indices: <MarketIndex>[], analysis: '');
+      return empty;
     }
   }
 
@@ -138,8 +141,8 @@ class MarketController extends StateNotifier<MarketState> {
       for (final q in queries) NewsSource.forSearch(q, NewsRegion.ko),
     ];
     try {
-      final fetched =
-          dedupeByContent(filterDomesticOutlets(await service.fetchAll(sources)));
+      final fetched = dropJunkArticles(
+          dedupeByContent(filterDomesticOutlets(await service.fetchAll(sources))));
       fetched.sort((a, b) {
         final ad = a.publishedAt, bd = b.publishedAt;
         if (ad == null && bd == null) return 0;

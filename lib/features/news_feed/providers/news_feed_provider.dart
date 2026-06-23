@@ -64,10 +64,10 @@ final newsFeedProvider =
   // De-duplicate by url, then collapse near-identical stories carried by
   // different outlets (same content, different 언론사).
   final seen = <String>{};
-  final articles = dedupeByContent(filterDomesticOutlets([
+  final articles = dropJunkArticles(dedupeByContent(filterDomesticOutlets([
     for (final a in fetched)
       if (seen.add(a.url)) a,
-  ]));
+  ])));
 
   // Ranking is recency-based, shifted by an hour offset that blends the AI
   // taste profile (category + specific keyword + source) with an explicit
