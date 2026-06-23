@@ -33,19 +33,22 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
   /// can be brought back). Not a preference signal.
   void _confirm() {
     ref.read(trashProvider.notifier).trash(article);
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('확인한 뉴스로 옮겼습니다'),
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: '실행취소',
-            onPressed: () =>
-                ref.read(trashProvider.notifier).restore(article.url),
-          ),
+    // Capture the messenger now: this card is removed from the tree the moment
+    // the article leaves the feed, so we must not touch `context` afterwards.
+    final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('확인한 뉴스로 옮겼습니다'),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: '실행취소',
+          onPressed: () => ref.read(trashProvider.notifier).restore(article.url),
         ),
-      );
+      ),
+    );
+    // Belt-and-suspenders: force-dismiss after 3s in case the auto-dismiss
+    // timer never starts (the card is disposed right after showing it).
+    Future.delayed(const Duration(seconds: 3), messenger.removeCurrentSnackBar);
   }
 
   @override
