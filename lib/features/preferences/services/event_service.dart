@@ -62,6 +62,7 @@ class EventService {
         'type': type.name,
         'category': article.categoryId,
         'source_name': article.sourceName,
+        'title': article.title,
       });
     } catch (_) {
       // Signal logging is best-effort; never block the UI on it.

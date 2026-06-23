@@ -62,16 +62,28 @@ async function claude(prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 600,
+      max_tokens: 1200,
       system:
-        'You analyze a reader\'s news interactions and produce a compact taste ' +
-        'profile. Each event has a "type": treat "like" and "bookmark" as ' +
-        'strong positive signals, "open" as mild positive, and "dislike" as a ' +
-        'strong negative signal (down-weight those categories/sources). ' +
-        'Respond with ONLY valid JSON of the shape ' +
-        '{"category_weights": {"<category>": <0..1>}, "keywords": ["..."], ' +
-        '"summary": "one sentence describing their interests"}. ' +
-        'Weights should sum to roughly 1. No prose outside the JSON.',
+        'You are a recommendation engine analyzing a reader\'s news ' +
+        'interactions to build a precise taste profile. Each event has a ' +
+        '"type", a "category", a "source_name", a "title", and a timestamp. ' +
+        'Weight the signals: "like" and "bookmark" = strong positive, "open" ' +
+        '= mild positive, "dislike" = strong negative. Give MORE weight to ' +
+        'more recent events. Read the TITLES to infer specific topics, ' +
+        'entities, people, companies, and themes the reader is drawn to or ' +
+        'avoids — this is the most important signal, not just the category. ' +
+        'Respond with ONLY valid JSON of this exact shape:\n' +
+        '{"category_weights": {"<categoryId>": <0..1>}, ' +
+        '"keyword_weights": {"<구체적 주제·키워드>": <-1..1>}, ' +
+        '"source_weights": {"<source_name>": <0..1>}, ' +
+        '"keywords": ["<상위 관심 키워드 6~12개, 한국어>"], ' +
+        '"likes": ["<좋아하는 주제 한국어 3~6개>"], ' +
+        '"dislikes": ["<기피하는 주제 한국어 0~6개>"], ' +
+        '"summary": "<독자의 관심사를 설명하는 한국어 한두 문장>"}\n' +
+        'keyword_weights: include 10-25 specific topics from the titles with ' +
+        'a weight in -1..1 (positive = interested, negative = avoids). ' +
+        'category_weights should roughly sum to 1. Korean for all ' +
+        'human-readable text. No prose or code fences outside the JSON.',
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -104,13 +116,21 @@ Deno.serve(async (req) => {
     if (!userId) return json({ error: 'Not authenticated' }, 401);
 
     const eventsRes = await fetch(
-      `${SUPA}/rest/v1/user_events?user_id=eq.${userId}&select=type,category,source_name,created_at&order=created_at.desc&limit=500`,
+      `${SUPA}/rest/v1/user_events?user_id=eq.${userId}&select=type,category,source_name,title,created_at&order=created_at.desc&limit=600`,
       { headers: restHeaders },
     );
     const events = eventsRes.ok ? await eventsRes.json() : [];
 
     if (!events || events.length === 0) {
-      const empty = { category_weights: {}, keywords: [], summary: '' };
+      const empty = {
+        category_weights: {},
+        keyword_weights: {},
+        source_weights: {},
+        keywords: [],
+        likes: [],
+        dislikes: [],
+        summary: '',
+      };
       await saveProfile(userId, empty);
       return json({ profile: empty });
     }

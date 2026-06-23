@@ -5,7 +5,6 @@ import 'package:news_application_maker/features/news_feed/models/news_article.da
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/news_feed/models/news_source.dart';
 import 'package:news_application_maker/features/news_feed/services/news_service.dart';
-import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/providers/settings_provider.dart';
 
 final newsServiceProvider = Provider<NewsService>((ref) {
@@ -13,6 +12,16 @@ final newsServiceProvider = Provider<NewsService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+
+/// Explicit baseline emphasis on economy / investment news, applied on top of
+/// the learned taste profile so these topics rank higher.
+const _economyCategories = {'business', 'stock', 'crypto', 'realestate'};
+const _economyKeywords = [
+  '경제', '투자', '증시', '주식', '금리', '부동산', '코스피', '코스닥', '환율',
+  '비트코인', '가상자산', '반도체', '펀드', '채권', '상장', '실적', '인플레이션',
+  'econom', 'invest', 'stock', 'market', 'fed ', 'interest rate', 'nasdaq',
+  'dow ', 'crypto', 'bitcoin', 'ipo', 'earnings', 'wall street', 'inflation',
+];
 
 /// The category tab the user is viewing. `null` means "전체" — every category
 /// the user enabled in Settings, merged together (the default view).
@@ -33,9 +42,11 @@ final newsFeedProvider =
   final enabled = ref.watch(enabledCategoriesProvider);
   final selected = ref.watch(selectedCategoryProvider);
   final region = ref.watch(regionFilterProvider);
-  final scoreOf = ref.read(scorerProvider);
-  // Category weights learned by the AI taste analysis (empty until first run).
-  final tasteWeights = ref.read(tasteControllerProvider.notifier).categoryWeights;
+  // Learned taste profile (category / specific-keyword / source weights).
+  final taste = ref.read(tasteControllerProvider.notifier);
+  final catW = taste.categoryWeights;
+  final kwW = taste.keywordWeights;
+  final srcW = taste.sourceWeights;
 
   // A specific (still-enabled) category, or "전체" → every enabled category.
   final showAll = selected == null || !enabled.any((c) => c.id == selected);
@@ -55,40 +66,35 @@ final newsFeedProvider =
       if (seen.add(a.url)) a,
   ];
 
-  int byRecency(NewsArticle a, NewsArticle b) {
-    final ad = a.publishedAt, bd = b.publishedAt;
-    if (ad == null && bd == null) return 0;
-    if (ad == null) return 1;
-    if (bd == null) return -1;
-    return bd.compareTo(ad);
+  // Ranking is recency-based, shifted by an hour offset that blends the AI
+  // taste profile (category + specific keyword + source) with an explicit
+  // economy/investment emphasis. A higher offset ranks an article as if it
+  // were fresher. With no taste profile yet, only the economy boost applies.
+  double boostHours(NewsArticle a) {
+    final title = a.title.toLowerCase();
+    var h = (catW[a.categoryId] ?? 0).clamp(0.0, 1.0) * 6;
+    var kw = 0.0;
+    kwW.forEach((k, w) {
+      if (k.length >= 2 && title.contains(k.toLowerCase())) kw += w;
+    });
+    h += kw.clamp(-2.0, 2.0) * 10;
+    h += (srcW[a.sourceName] ?? 0).clamp(0.0, 1.0) * 4;
+    // Explicit economy / investment priority.
+    if (_economyCategories.contains(a.categoryId)) h += 12;
+    if (_economyKeywords.any(title.contains)) h += 8;
+    return h.clamp(-48.0, 48.0);
   }
 
-  // "전체": newest-first, gently nudged by the AI taste profile so preferred
-  // categories surface a little higher without clustering. A category weighted
-  // 1.0 ranks as if its articles were up to ~12h fresher; with no taste profile
-  // yet, the nudge is zero and the feed is purely chronological.
-  DateTime? boosted(NewsArticle a) {
-    final t = a.publishedAt;
-    if (t == null) return null;
-    final w = (tasteWeights[a.categoryId] ?? 0).clamp(0.0, 1.0);
-    return t.add(Duration(minutes: (w * 12 * 60).round()));
-  }
+  DateTime? effective(NewsArticle a) =>
+      a.publishedAt?.add(Duration(minutes: (boostHours(a) * 60).round()));
 
-  if (showAll) {
-    articles.sort((a, b) {
-      final ab = boosted(a), bb = boosted(b);
-      if (ab == null && bb == null) return 0;
-      if (ab == null) return 1;
-      if (bb == null) return -1;
-      return bb.compareTo(ab);
-    });
-  } else {
-    // Within a single category, surface preferred sources/topics first.
-    articles.sort((a, b) {
-      final byScore = scoreOf(b).compareTo(scoreOf(a));
-      return byScore != 0 ? byScore : byRecency(a, b);
-    });
-  }
+  articles.sort((a, b) {
+    final ae = effective(a), be = effective(b);
+    if (ae == null && be == null) return 0;
+    if (ae == null) return 1;
+    if (be == null) return -1;
+    return be.compareTo(ae);
+  });
   return articles;
 });
 

@@ -68,8 +68,28 @@ class AiService {
     throw const AiException('Could not interpret the search request.');
   }
 
+  /// Loads the user's last-computed taste profile from `user_taste` without
+  /// invoking Claude (no cost). Returns null when signed out or none exists.
+  Future<Map<String, dynamic>?> loadTaste() async {
+    if (!SupabaseService.isConfigured) return null;
+    final uid = SupabaseService.auth.currentUser?.id;
+    if (uid == null) return null;
+    try {
+      final row = await SupabaseService.client
+          .from('user_taste')
+          .select('profile')
+          .eq('user_id', uid)
+          .maybeSingle();
+      final p = row?['profile'];
+      return p is Map ? p.cast<String, dynamic>() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Rebuilds the signed-in user's taste profile from recent interactions.
-  /// Returns the profile map: { category_weights, keywords, summary }.
+  /// Returns the profile map: { category_weights, keyword_weights,
+  /// source_weights, keywords, likes, dislikes, summary }.
   Future<Map<String, dynamic>> refreshTaste() async {
     final res =
         await SupabaseService.client.functions.invoke('ai-taste', body: {});

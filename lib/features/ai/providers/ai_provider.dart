@@ -1,9 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:news_application_maker/core/providers/core_providers.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
+import 'package:news_application_maker/features/preferences/services/taste_service.dart';
 
 final aiServiceProvider = Provider<AiService>((ref) => const AiService());
+
+final tasteServiceProvider = Provider<TasteService>((ref) {
+  return TasteService(ref.watch(localStorageProvider));
+});
 
 /// Lazily generates (and caches) the AI summary for a given article.
 final articleSummaryProvider =
@@ -17,29 +23,60 @@ final articleTranslationProvider = FutureProvider.autoDispose
   return ref.watch(aiServiceProvider).translate(article);
 });
 
-/// The user's learned taste profile. `null` until first built.
+/// The user's learned taste profile. Hydrated from the local cache instantly,
+/// then refreshed from the server, so taste-based ranking works from app start.
 class TasteController extends StateNotifier<AsyncValue<Map<String, dynamic>?>> {
-  TasteController(this._service) : super(const AsyncData(null));
+  TasteController(this._service, this._cache)
+      : super(AsyncData(_cache.load())) {
+    _hydrate();
+  }
 
   final AiService _service;
+  final TasteService _cache;
 
+  /// Pull the last-computed profile from the server (no Claude cost).
+  Future<void> _hydrate() async {
+    final remote = await _service.loadTaste();
+    if (remote != null) {
+      state = AsyncData(remote);
+      await _cache.save(remote);
+    }
+  }
+
+  /// Recompute the profile from recent interactions (invokes Claude).
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(_service.refreshTaste);
+    final value = state.valueOrNull;
+    if (value != null) await _cache.save(value);
   }
 
-  /// Category weights extracted from the current profile (empty when none).
-  Map<String, double> get categoryWeights {
-    final profile = state.valueOrNull;
-    final weights = profile?['category_weights'];
-    if (weights is Map) {
-      return weights.map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
+  Map<String, double> _weights(String key) {
+    final raw = state.valueOrNull?[key];
+    if (raw is Map) {
+      final out = <String, double>{};
+      raw.forEach((k, v) {
+        if (v is num) out[k.toString()] = v.toDouble();
+      });
+      return out;
     }
     return const {};
   }
+
+  /// Category-level preference (0..1).
+  Map<String, double> get categoryWeights => _weights('category_weights');
+
+  /// Specific topic/keyword preference (-1..1).
+  Map<String, double> get keywordWeights => _weights('keyword_weights');
+
+  /// Source/outlet preference (0..1).
+  Map<String, double> get sourceWeights => _weights('source_weights');
 }
 
 final tasteControllerProvider = StateNotifierProvider<TasteController,
     AsyncValue<Map<String, dynamic>?>>((ref) {
-  return TasteController(ref.watch(aiServiceProvider));
+  return TasteController(
+    ref.watch(aiServiceProvider),
+    ref.watch(tasteServiceProvider),
+  );
 });
