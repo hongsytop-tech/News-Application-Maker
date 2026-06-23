@@ -52,16 +52,25 @@ final newsFeedProvider =
       if (seen.add(a.url)) a,
   ];
 
-  // Stable re-rank: preference score first, recency as tiebreaker.
-  articles.sort((a, b) {
-    final byScore = scoreOf(b).compareTo(scoreOf(a));
-    if (byScore != 0) return byScore;
+  int byRecency(NewsArticle a, NewsArticle b) {
     final ad = a.publishedAt, bd = b.publishedAt;
     if (ad == null && bd == null) return 0;
     if (ad == null) return 1;
     if (bd == null) return -1;
     return bd.compareTo(ad);
-  });
+  }
+
+  if (showAll) {
+    // "전체": a mixed timeline — newest first so every category interleaves
+    // instead of the most-engaged category clustering at the top.
+    articles.sort(byRecency);
+  } else {
+    // Within a single category, surface preferred sources/topics first.
+    articles.sort((a, b) {
+      final byScore = scoreOf(b).compareTo(scoreOf(a));
+      return byScore != 0 ? byScore : byRecency(a, b);
+    });
+  }
   return articles;
 });
 
