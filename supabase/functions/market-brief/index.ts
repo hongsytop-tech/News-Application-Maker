@@ -33,18 +33,55 @@ function extractJson(s: string): string {
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
 
-const INDICES = [
-  { symbol: '^KS11', name: '코스피', market: 'kr' },
-  { symbol: '^KQ11', name: '코스닥', market: 'kr' },
+// US indices come from Yahoo Finance; KR indices from Naver (fresher KR data).
+const US_INDICES = [
   { symbol: '^GSPC', name: 'S&P 500', market: 'us' },
   { symbol: '^IXIC', name: '나스닥', market: 'us' },
   { symbol: '^DJI', name: '다우', market: 'us' },
+];
+const KR_INDICES = [
+  { code: 'KOSPI', name: '코스피' },
+  { code: 'KOSDAQ', name: '코스닥' },
 ];
 
 type Idx = {
   symbol: string; name: string; market: string;
   price: number; change: number; change_percent: number; as_of: string | null;
 };
+
+/// Today's date (YYYY-MM-DD) in Korea, to skip an in-progress same-day candle.
+function kstDate(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/// KR index from Naver: returns the most recent completed trading day's close,
+/// change and percent (Naver provides these directly).
+async function fetchNaverKr(s: { code: string; name: string }): Promise<Idx | null> {
+  try {
+    const r = await fetch(
+      `https://m.stock.naver.com/api/index/${s.code}/price?pageSize=5&page=1`,
+      { headers: { 'User-Agent': UA, Referer: 'https://m.stock.naver.com/', Accept: 'application/json' } },
+    );
+    if (!r.ok) return null;
+    const arr = await r.json();
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    // arr is newest-first; skip today's in-progress row.
+    let row = arr[0];
+    if (row.localTradedAt === kstDate() && arr.length > 1) row = arr[1];
+    const num = (v: unknown) => Number(String(v ?? '').replace(/,/g, ''));
+    const price = num(row.closePrice);
+    if (!isFinite(price) || price === 0) return null;
+    return {
+      symbol: s.code, name: s.name, market: 'kr',
+      price,
+      change: num(row.compareToPreviousClosePrice),
+      change_percent: num(row.fluctuationsRatio),
+      as_of: `${row.localTradedAt}T00:00:00+09:00`,
+    };
+  } catch (_) {
+    return null;
+  }
+}
 
 async function fetchIndex(s: { symbol: string; name: string; market: string }): Promise<Idx | null> {
   try {
@@ -171,11 +208,12 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const [indicesRaw, headlines] = await Promise.all([
-      Promise.all(INDICES.map(fetchIndex)),
+    const [krRaw, usRaw, headlines] = await Promise.all([
+      Promise.all(KR_INDICES.map(fetchNaverKr)),
+      Promise.all(US_INDICES.map(fetchIndex)),
       fetchHeadlines(),
     ]);
-    const indices = indicesRaw.filter((i): i is Idx => i !== null);
+    const indices = [...krRaw, ...usRaw].filter((i): i is Idx => i !== null);
     const analysis = await analyze(indices, headlines);
     return json({
       indices,
