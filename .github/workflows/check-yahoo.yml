@@ -1,0 +1,12 @@
+name: Check Yahoo
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths: [tool/check_yahoo.py, .github/workflows/check-yahoo.yml]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tool/check_yahoo.py
