@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:news_application_maker/core/providers/core_providers.dart';
 import 'package:news_application_maker/core/utils/dedupe.dart';
+import 'package:news_application_maker/core/utils/outlet_filter.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/market/models/market_index.dart';
 import 'package:news_application_maker/features/market/models/market_snapshot.dart';
@@ -83,7 +84,8 @@ class MarketController extends StateNotifier<MarketState> {
       for (final q in queries) NewsSource.forSearch(q, NewsRegion.ko),
     ];
     try {
-      final fetched = dedupeByContent(await service.fetchAll(sources));
+      final fetched =
+          dedupeByContent(filterDomesticOutlets(await service.fetchAll(sources)));
       fetched.sort((a, b) {
         final ad = a.publishedAt, bd = b.publishedAt;
         if (ad == null && bd == null) return 0;
