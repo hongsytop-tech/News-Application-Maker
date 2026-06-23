@@ -28,7 +28,7 @@ final searchResultsProvider =
 
   final service = ref.watch(newsServiceProvider);
   final region = ref.watch(regionFilterProvider);
-  final scoreOf = ref.watch(scorerProvider);
+  final scoreOf = ref.read(scorerProvider);
 
   var koQuery = input;
   var enQuery = input;

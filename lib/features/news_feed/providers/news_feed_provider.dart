@@ -22,13 +22,17 @@ final regionFilterProvider = StateProvider<NewsRegion?>((ref) => null);
 
 /// The feed for the active selection + region, re-ranked by learned preference.
 /// When no specific category is selected, all enabled categories are merged.
+///
+/// Not autoDispose, and the scorer is *read* (not watched): the feed only
+/// reloads on an explicit refresh (button / pull-to-refresh) or app start —
+/// recording open/bookmark/dismiss events must not trigger a refetch.
 final newsFeedProvider =
-    FutureProvider.autoDispose<List<NewsArticle>>((ref) async {
+    FutureProvider<List<NewsArticle>>((ref) async {
   final service = ref.watch(newsServiceProvider);
   final enabled = ref.watch(enabledCategoriesProvider);
   final selected = ref.watch(selectedCategoryProvider);
   final region = ref.watch(regionFilterProvider);
-  final scoreOf = ref.watch(scorerProvider);
+  final scoreOf = ref.read(scorerProvider);
 
   // A specific (still-enabled) category, or "전체" → every enabled category.
   final showAll = selected == null || !enabled.any((c) => c.id == selected);
