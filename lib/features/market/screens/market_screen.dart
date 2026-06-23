@@ -7,9 +7,11 @@ import 'package:news_application_maker/core/router/app_router.dart';
 import 'package:news_application_maker/features/market/models/market_index.dart';
 import 'package:news_application_maker/features/market/providers/market_provider.dart';
 import 'package:news_application_maker/features/market/services/market_service.dart';
+import 'package:news_application_maker/features/news_feed/models/news_article.dart';
 import 'package:news_application_maker/features/news_feed/widgets/article_card.dart';
 import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/services/event_service.dart';
+import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
 /// "주식 시황": previous-day index moves, an AI market analysis, and the week's
 /// key economy/industry articles. Auto-updates each morning (≈7am, on open),
@@ -23,6 +25,10 @@ class MarketScreen extends ConsumerWidget {
     final state = ref.watch(marketControllerProvider);
     final controller = ref.read(marketControllerProvider.notifier);
     final snapshot = state.selected;
+    final trashed = ref.watch(trashedUrlsProvider);
+    final articles = snapshot == null
+        ? const <NewsArticle>[]
+        : snapshot.articles.where((a) => !trashed.contains(a.url)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -65,18 +71,21 @@ class MarketScreen extends ConsumerWidget {
               const _SectionTitle('시장 분석'),
               if (snapshot.analysisKr.isNotEmpty)
                 _AnalysisCard(title: '🇰🇷 한국 시장', text: snapshot.analysisKr),
+              if (snapshot.analysisKr.isNotEmpty &&
+                  snapshot.analysisUs.isNotEmpty)
+                const SizedBox(height: 10),
               if (snapshot.analysisUs.isNotEmpty)
                 _AnalysisCard(title: '🇺🇸 미국 시장', text: snapshot.analysisUs),
               const SizedBox(height: 16),
             ],
             const _SectionTitle('주요 경제·산업 기사'),
-            if (snapshot.articles.isEmpty)
+            if (articles.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('이번 업데이트에 새로 추가된 기사가 없습니다.'),
+                child: Text('표시할 기사가 없습니다.'),
               )
             else
-              for (final a in snapshot.articles)
+              for (final a in articles)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: ArticleCard(

@@ -11,6 +11,7 @@ import 'package:news_application_maker/features/news_feed/models/news_article.da
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/news_feed/models/news_source.dart';
 import 'package:news_application_maker/features/news_feed/providers/news_feed_provider.dart';
+import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
 final marketServiceProvider = Provider<MarketService>((ref) {
   return MarketService(ref.watch(localStorageProvider));
@@ -92,12 +93,11 @@ class MarketController extends StateNotifier<MarketState> {
     );
     try {
       final brief = await _fetchBrief();
-      final seen = <String>{
-        for (final s in state.history)
-          for (final a in s.articles) a.url,
-      };
+      // Only articles the user marked "확인" (moved to 확인한 뉴스) are excluded;
+      // otherwise an article may appear across days until the user dismisses it.
+      final trashed = _ref.read(trashedUrlsProvider);
       final news =
-          (await _fetchNews()).where((a) => !seen.contains(a.url)).toList();
+          (await _fetchNews()).where((a) => !trashed.contains(a.url)).toList();
 
       final snapshot = MarketSnapshot(
         indices: brief.indices,
