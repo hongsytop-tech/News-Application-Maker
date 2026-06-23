@@ -48,7 +48,15 @@ class _NewsSearchScreenState extends ConsumerState<NewsSearchScreen> {
     final result = ref.watch(searchResultsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('뉴스 검색')),
+      appBar: AppBar(
+        title: const Text('뉴스 검색'),
+        leading: IconButton(
+          tooltip: '뒤로',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(Routes.feed),
+        ),
+      ),
       body: Column(
         children: [
           Padding(

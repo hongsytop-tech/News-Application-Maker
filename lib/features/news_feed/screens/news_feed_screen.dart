@@ -28,7 +28,7 @@ class NewsFeedScreen extends ConsumerWidget {
           IconButton(
             tooltip: '검색',
             icon: const Icon(Icons.search),
-            onPressed: () => context.go(Routes.search),
+            onPressed: () => context.push(Routes.search),
           ),
           IconButton(
             tooltip: '새로고침',
