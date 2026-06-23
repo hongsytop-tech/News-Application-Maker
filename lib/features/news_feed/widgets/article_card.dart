@@ -38,6 +38,7 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
       ..showSnackBar(
         SnackBar(
           content: const Text('확인한 뉴스로 옮겼습니다'),
+          duration: const Duration(seconds: 3),
           action: SnackBarAction(
             label: '실행취소',
             onPressed: () =>
