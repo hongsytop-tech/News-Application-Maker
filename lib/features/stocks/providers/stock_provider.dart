@@ -30,6 +30,17 @@ class HoldingsNotifier extends StateNotifier<List<Holding>> {
     state = state.where((x) => x.code != code).toList();
     await _service.saveHoldings(state);
   }
+
+  /// Moves a holding to reorder the list (and persists the new order).
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    final list = [...state];
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (oldIndex < 0 || oldIndex >= list.length) return;
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex.clamp(0, list.length), item);
+    state = list;
+    await _service.saveHoldings(state);
+  }
 }
 
 final holdingsProvider =

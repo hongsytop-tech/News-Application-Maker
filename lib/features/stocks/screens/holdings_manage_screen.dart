@@ -124,22 +124,56 @@ class _HoldingsList extends ConsumerWidget {
         ),
       );
     }
-    return ListView(
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text('보유 종목'),
-        ),
-        for (final h in holdings)
-          ListTile(
-            title: Text(h.name),
-            subtitle: Text('${h.isDomestic ? '국내' : '해외'} · ${h.code}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: '삭제',
-              onPressed: () => ref.read(holdingsProvider.notifier).remove(h.code),
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Row(
+            children: [
+              const Text('보유 종목'),
+              const Spacer(),
+              Text('오른쪽 핸들을 끌어 순서 변경',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+            ],
           ),
+        ),
+        Expanded(
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            itemCount: holdings.length,
+            onReorder: (oldIndex, newIndex) =>
+                ref.read(holdingsProvider.notifier).reorder(oldIndex, newIndex),
+            itemBuilder: (context, i) {
+              final h = holdings[i];
+              return ListTile(
+                key: ValueKey(h.code),
+                title: Text(h.name),
+                subtitle: Text('${h.isDomestic ? '국내' : '해외'} · ${h.code}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: '삭제',
+                      onPressed: () =>
+                          ref.read(holdingsProvider.notifier).remove(h.code),
+                    ),
+                    ReorderableDragStartListener(
+                      index: i,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.drag_handle),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
