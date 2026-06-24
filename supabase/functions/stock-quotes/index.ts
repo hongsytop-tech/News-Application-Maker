@@ -83,6 +83,33 @@ async function quoteOne(item: any): Promise<any | null> {
   }
 }
 
+// Current KOSPI/KOSDAQ index value + change (realtime polling endpoint).
+// deno-lint-ignore no-explicit-any
+async function indexQuote(code: string, name: string): Promise<any | null> {
+  try {
+    const r = await fetch(
+      `https://polling.finance.naver.com/api/realtime/domestic/index/${code}`,
+      { headers: HDRS },
+    );
+    if (!r.ok) return null;
+    const b = await r.json();
+    const d = b?.datas?.[0];
+    if (!d) return null;
+    const price = num(d.closePrice);
+    if (!isFinite(price)) return null;
+    const dc = String(d?.compareToPreviousPrice?.code ?? '3');
+    return {
+      code, name, market: 'index',
+      price,
+      change: signed(d.compareToPreviousClosePrice, dc),
+      change_percent: signed(d.fluctuationsRatio, dc),
+      currency: '',
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -95,8 +122,12 @@ Deno.serve(async (req) => {
     }
     if (body?.mode === 'quotes') {
       const items = Array.isArray(body.items) ? body.items.slice(0, 50) : [];
-      const quotes = (await Promise.all(items.map(quoteOne))).filter((x) => x !== null);
-      return json({ quotes });
+      const [quotes, indices] = await Promise.all([
+        Promise.all(items.map(quoteOne)).then((a) => a.filter((x) => x !== null)),
+        Promise.all([indexQuote('KOSPI', '코스피'), indexQuote('KOSDAQ', '코스닥')])
+          .then((a) => a.filter((x) => x !== null)),
+      ]);
+      return json({ quotes, indices });
     }
     return json({ error: 'Invalid "mode"' }, 400);
   } catch (err) {

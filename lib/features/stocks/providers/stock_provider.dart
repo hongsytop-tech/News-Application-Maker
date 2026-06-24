@@ -60,12 +60,14 @@ final stockSearchProvider = FutureProvider.autoDispose
 class QuotesState {
   const QuotesState({
     this.quotes = const [],
+    this.indices = const [],
     this.updatedAt,
     this.loading = false,
     this.error,
   });
 
   final List<StockQuote> quotes;
+  final List<StockQuote> indices; // 코스피, 코스닥 (fixed at the top)
   final DateTime? updatedAt;
   final bool loading;
   final String? error;
@@ -81,27 +83,34 @@ class QuotesState {
 class QuotesController extends StateNotifier<QuotesState> {
   QuotesController(this._ref) : super(const QuotesState()) {
     final cached = _ref.read(holdingsServiceProvider).loadQuotes();
-    state = QuotesState(quotes: cached.quotes, updatedAt: cached.updatedAt);
+    state = QuotesState(
+      quotes: cached.quotes,
+      indices: cached.indices,
+      updatedAt: cached.updatedAt,
+    );
   }
 
   final Ref _ref;
 
   Future<void> refresh() async {
-    final holdings = _ref.read(holdingsProvider);
-    if (holdings.isEmpty) {
-      state = const QuotesState();
-      return;
-    }
     state = QuotesState(
-        quotes: state.quotes, updatedAt: state.updatedAt, loading: true);
+      quotes: state.quotes,
+      indices: state.indices,
+      updatedAt: state.updatedAt,
+      loading: true,
+    );
     try {
-      final quotes = await _ref.read(stockServiceProvider).quotes(holdings);
+      final r =
+          await _ref.read(stockServiceProvider).quotes(_ref.read(holdingsProvider));
       final now = DateTime.now();
-      await _ref.read(holdingsServiceProvider).saveQuotes(quotes, now);
-      state = QuotesState(quotes: quotes, updatedAt: now);
+      await _ref
+          .read(holdingsServiceProvider)
+          .saveQuotes(r.quotes, r.indices, now);
+      state = QuotesState(quotes: r.quotes, indices: r.indices, updatedAt: now);
     } catch (e) {
       state = QuotesState(
         quotes: state.quotes,
+        indices: state.indices,
         updatedAt: state.updatedAt,
         error: e.toString(),
       );

@@ -17,23 +17,33 @@ class HoldingsService {
   Future<void> saveHoldings(List<Holding> holdings) =>
       _storage.setJsonList(_holdingsKey, [for (final h in holdings) h.toJson()]);
 
-  ({List<StockQuote> quotes, DateTime? updatedAt}) loadQuotes() {
+  ({List<StockQuote> quotes, List<StockQuote> indices, DateTime? updatedAt})
+      loadQuotes() {
     final list = _storage.getJsonList(_quotesKey);
-    if (list.isEmpty) return (quotes: const [], updatedAt: null);
+    if (list.isEmpty) {
+      return (quotes: const [], indices: const [], updatedAt: null);
+    }
     final wrap = list.first;
-    final raw = (wrap['quotes'] as List?) ?? const [];
+    List<StockQuote> parse(String key) => [
+          for (final e in (wrap[key] as List?) ?? const [])
+            StockQuote.fromJson((e as Map).cast<String, dynamic>()),
+        ];
     return (
-      quotes: [
-        for (final e in raw) StockQuote.fromJson((e as Map).cast<String, dynamic>()),
-      ],
+      quotes: parse('quotes'),
+      indices: parse('indices'),
       updatedAt: DateTime.tryParse(wrap['updated_at']?.toString() ?? ''),
     );
   }
 
-  Future<void> saveQuotes(List<StockQuote> quotes, DateTime updatedAt) =>
+  Future<void> saveQuotes(
+    List<StockQuote> quotes,
+    List<StockQuote> indices,
+    DateTime updatedAt,
+  ) =>
       _storage.setJsonList(_quotesKey, [
         {
           'quotes': [for (final q in quotes) q.toJson()],
+          'indices': [for (final q in indices) q.toJson()],
           'updated_at': updatedAt.toIso8601String(),
         }
       ]);

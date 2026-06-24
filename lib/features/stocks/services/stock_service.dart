@@ -22,9 +22,10 @@ class StockService {
     ];
   }
 
-  /// Fetches a one-time quote for each holding.
-  Future<List<StockQuote>> quotes(List<Holding> holdings) async {
-    if (holdings.isEmpty) return const [];
+  /// Fetches one-time quotes for each holding plus the current KOSPI/KOSDAQ
+  /// indices (always returned, even with no holdings).
+  Future<({List<StockQuote> quotes, List<StockQuote> indices})> quotes(
+      List<Holding> holdings) async {
     final res = await SupabaseService.client.functions.invoke(
       'stock-quotes',
       body: {
@@ -36,10 +37,14 @@ class StockService {
       },
     );
     final data = res.data;
-    final list = (data is Map ? data['quotes'] : null) as List? ?? const [];
-    return [
-      for (final e in list)
-        StockQuote.fromJson((e as Map).cast<String, dynamic>()),
-    ];
+    List<StockQuote> parse(String key) {
+      final list = (data is Map ? data[key] : null) as List? ?? const [];
+      return [
+        for (final e in list)
+          StockQuote.fromJson((e as Map).cast<String, dynamic>()),
+      ];
+    }
+
+    return (quotes: parse('quotes'), indices: parse('indices'));
   }
 }

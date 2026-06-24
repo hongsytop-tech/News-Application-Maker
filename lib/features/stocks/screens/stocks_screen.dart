@@ -36,9 +36,8 @@ class StocksScreen extends ConsumerWidget {
             child: _UpdateBar(
               updatedAt: state.updatedAt,
               loading: state.loading,
-              onUpdate: holdings.isEmpty
-                  ? null
-                  : () => ref.read(quotesControllerProvider.notifier).refresh(),
+              onUpdate: () =>
+                  ref.read(quotesControllerProvider.notifier).refresh(),
             ),
           ),
           if (state.error != null)
@@ -47,6 +46,8 @@ class StocksScreen extends ConsumerWidget {
               child: Text('업데이트 실패: ${state.error}',
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
+          // Fixed KOSPI/KOSDAQ indices at the top (not reorderable).
+          if (state.indices.isNotEmpty) _IndexBar(indices: state.indices),
           const Divider(height: 1),
           Expanded(
             child: holdings.isEmpty
@@ -96,6 +97,66 @@ class _UpdateBar extends StatelessWidget {
           label: Text(loading ? '업데이트 중' : '업데이트'),
         ),
       ],
+    );
+  }
+}
+
+/// Fixed KOSPI/KOSDAQ index row at the top (not reorderable).
+class _IndexBar extends StatelessWidget {
+  const _IndexBar({required this.indices});
+
+  final List<StockQuote> indices;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: Row(
+        children: [
+          for (var i = 0; i < indices.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(child: _IndexCard(quote: indices[i])),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IndexCard extends StatelessWidget {
+  const _IndexCard({required this.quote});
+
+  final StockQuote quote;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final q = quote;
+    final color = q.isUp ? Colors.red : Colors.blue;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(q.name,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline)),
+          const SizedBox(height: 2),
+          Text(NumberFormat('#,##0.00').format(q.price),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 2),
+          Text(
+            '${q.isUp ? '▲' : '▼'} ${q.change.abs().toStringAsFixed(2)} '
+            '(${q.changePercent.toStringAsFixed(2)}%)',
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ],
+      ),
     );
   }
 }
