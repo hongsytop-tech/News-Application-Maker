@@ -1,6 +1,8 @@
 name: verify-index
 on:
-  workflow_dispatch:
+  push:
+    branches: [claude/intelligent-babbage-eah84q]
+    paths: ['.github/workflows/verify-index.yml']
 
 jobs:
   check:
@@ -17,9 +19,5 @@ jobs:
             echo "===== api/index/$CODE/basic ====="
             curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" \
               "https://m.stock.naver.com/api/index/$CODE/basic" | head -c 2000
-            echo ""
-            echo "===== api/index/$CODE/price (page 1) ====="
-            curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" \
-              "https://m.stock.naver.com/api/index/$CODE/price?pageSize=3&page=1" | head -c 2000
             echo ""
           done
