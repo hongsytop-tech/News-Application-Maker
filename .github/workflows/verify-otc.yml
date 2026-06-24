@@ -1,0 +1,27 @@
+name: verify-otc
+on:
+  push:
+    branches: [claude/intelligent-babbage-eah84q]
+    paths: ['.github/workflows/verify-otc.yml']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Naver unlisted (비상장) endpoints
+        run: |
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
+          get() { curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" "$1"; }
+
+          for Q in 비바리퍼블리카 컬리 무신사 토스 케이뱅크; do
+            echo "===== AC search: $Q ====="
+            get "https://ac.stock.naver.com/ac?q=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$Q")&target=stock,index,marketindexworld,ipo,unlisted&st=111" | head -c 2500
+            echo ""
+          done
+
+          echo "===== api.stock.naver.com unlisted list ====="
+          get "https://api.stock.naver.com/stock/unlisted?page=1&pageSize=10" | head -c 1500
+          echo ""
+          echo "===== m.stock.naver.com home unlisted ====="
+          get "https://m.stock.naver.com/api/home/unlisted" | head -c 1500
+          echo ""
