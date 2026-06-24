@@ -57,6 +57,13 @@ class MyPageScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(Routes.categories),
           ),
+          ListTile(
+            leading: const Icon(Icons.savings_outlined),
+            title: const Text('보유 종목 관리'),
+            subtitle: const Text('"내 주식" 탭에 표시할 종목을 추가/삭제합니다.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.holdings),
+          ),
           const Divider(),
 
           // --- AI taste ---

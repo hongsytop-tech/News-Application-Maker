@@ -12,6 +12,8 @@ import 'package:news_application_maker/features/news_feed/screens/news_feed_scre
 import 'package:news_application_maker/features/news_feed/screens/news_search_screen.dart';
 import 'package:news_application_maker/features/market/screens/market_screen.dart';
 import 'package:news_application_maker/features/preferences/screens/category_settings_screen.dart';
+import 'package:news_application_maker/features/stocks/screens/holdings_manage_screen.dart';
+import 'package:news_application_maker/features/stocks/screens/stocks_screen.dart';
 import 'package:news_application_maker/features/mypage/screens/my_page_screen.dart';
 import 'package:news_application_maker/features/shell/home_shell.dart';
 import 'package:news_application_maker/features/trash/screens/trash_screen.dart';
@@ -22,6 +24,8 @@ class Routes {
   static const login = '/login';
   static const feed = '/feed';
   static const market = '/market';
+  static const stocks = '/stocks';
+  static const holdings = '/holdings';
   static const bookmarks = '/bookmarks';
   static const mypage = '/mypage';
   static const search = '/search';
@@ -61,6 +65,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CategorySettingsScreen(),
       ),
       GoRoute(
+        path: Routes.holdings,
+        builder: (context, state) => const HoldingsManageScreen(),
+      ),
+      GoRoute(
         path: Routes.trash,
         builder: (context, state) => const TrashScreen(),
       ),
@@ -83,6 +91,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: Routes.market,
             builder: (context, state) => const MarketScreen(),
+          ),
+          GoRoute(
+            path: Routes.stocks,
+            builder: (context, state) => const StocksScreen(),
           ),
           GoRoute(
             path: Routes.bookmarks,
