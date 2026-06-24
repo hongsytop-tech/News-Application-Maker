@@ -8,25 +8,29 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Naver unlisted (비상장) endpoints round 2
+      - name: Probe Npay 증권 front-api (비상장) round 3
         run: |
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
           enc() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
-          get() { echo "----- $1"; curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" "$1" | head -c 1200; echo ""; }
-
+          get() { echo "----- $1"; curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" "$1" | head -c 900; echo ""; }
           Q=$(enc 비바리퍼블리카)
-          echo "##### integrated/full search candidates #####"
-          get "https://m.stock.naver.com/api/search/integration?query=$Q"
-          get "https://api.stock.naver.com/search/integration?query=$Q"
-          get "https://api.stock.naver.com/search/all?query=$Q"
-          get "https://m.stock.naver.com/api/search/all?query=$Q"
 
-          echo "##### unlisted-targeted autocomplete #####"
-          get "https://ac.stock.naver.com/ac?q=$Q&target=unlisted&st=111"
-          get "https://ac.stock.naver.com/ac?q=$Q&target=stock,unlisted,ipo,index&st=111&frm=stock"
+          echo "##### front-api search #####"
+          get "https://m.stock.naver.com/front-api/search/autoComplete?query=$Q&target=stock,index,ipo,unlisted"
+          get "https://m.stock.naver.com/front-api/v1/search/autoComplete?query=$Q&target=stock,unlisted"
+          get "https://m.stock.naver.com/front-api/search/integrate?query=$Q"
+          get "https://m.stock.naver.com/front-api/v1/search/integrate?query=$Q"
 
-          echo "##### unlisted list / home #####"
-          get "https://api.stock.naver.com/unlisted/list?page=1&pageSize=5"
-          get "https://api.stock.naver.com/unlisted?page=1&pageSize=5"
-          get "https://m.stock.naver.com/api/unlisted/ranking?category=POPULAR&page=1&pageSize=5"
-          get "https://api.stock.naver.com/stock/unlisted/ranking?page=1&pageSize=5"
+          echo "##### front-api unlisted ranking/list #####"
+          get "https://m.stock.naver.com/front-api/v1/unlisted/ranking?category=POPULAR&page=1&pageSize=5"
+          get "https://m.stock.naver.com/front-api/unlisted/ranking?page=1&pageSize=5"
+          get "https://m.stock.naver.com/front-api/v1/unlisted/popular"
+
+          echo "##### scrape unlisted page HTML for api hints #####"
+          for U in \
+            "https://m.stock.naver.com/investment/unlisted" \
+            "https://m.stock.naver.com/unlisted" ; do
+            echo "----- PAGE $U"
+            curl -s -H "User-Agent: $UA" "$U" \
+              | grep -oE '(front-api|/api/)[A-Za-z0-9/_?=&.-]+' | sort -u | head -40
+          done
