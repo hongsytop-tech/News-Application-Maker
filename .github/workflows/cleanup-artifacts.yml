@@ -1,0 +1,73 @@
+name: Cleanup old artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "남길 최신 artifact 개수"
+        required: false
+        default: "5"
+  schedule:
+    # 매주 일요일 03:17 UTC (KST 월요일 12:17)
+    - cron: "17 3 * * 0"
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old artifacts (keep N newest)
+        uses: actions/github-script@v7
+        env:
+          # 수동 실행 시 입력값, 그 외(스케줄)에는 기본 5
+          KEEP: ${{ github.event.inputs.keep || '5' }}
+        with:
+          script: |
+            const keep = Math.max(0, parseInt(process.env.KEEP, 10) || 5);
+            const { owner, repo } = context.repo;
+
+            // 이 repo의 모든 artifact 조회 (페이지네이션)
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner, repo, per_page: 100 },
+            );
+
+            // created_at 최신순 정렬
+            artifacts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            const toDelete = artifacts.slice(keep);
+            core.info(
+              `전체 artifact ${artifacts.length}개 · 남길 개수 ${keep} · 삭제 대상 ${toDelete.length}개`,
+            );
+
+            let freed = 0;
+            let deleted = 0;
+            for (const art of toDelete) {
+              const mb = ((art.size_in_bytes || 0) / 1024 / 1024).toFixed(2);
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner, repo, artifact_id: art.id,
+                });
+                freed += art.size_in_bytes || 0;
+                deleted += 1;
+                core.info(`삭제 #${art.id} "${art.name}" (${mb} MB · ${art.created_at})`);
+              } catch (e) {
+                core.warning(`삭제 실패 #${art.id} "${art.name}": ${e.message}`);
+              }
+            }
+
+            const freedMb = (freed / 1024 / 1024).toFixed(2);
+            const kept = Math.min(keep, artifacts.length);
+            core.info(`완료: ${deleted}개 삭제, 약 ${freedMb} MB 절약 (남긴 artifact ${kept}개)`);
+
+            await core.summary
+              .addHeading('🧹 Artifact 정리 결과')
+              .addList([
+                `전체: ${artifacts.length}개`,
+                `남김: ${kept}개`,
+                `삭제: ${deleted}개`,
+                `절약: ${freedMb} MB`,
+              ])
+              .write();
