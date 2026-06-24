@@ -83,18 +83,18 @@ async function quoteOne(item: any): Promise<any | null> {
   }
 }
 
-// Current KOSPI/KOSDAQ index value + change (realtime polling endpoint).
+// Current KOSPI/KOSDAQ index value + change.
+// Uses m.stock.naver.com (same host as quoteOne, which is reachable from the
+// Edge runtime) — polling.finance.naver.com is blocked from Supabase's egress.
 // deno-lint-ignore no-explicit-any
 async function indexQuote(code: string, name: string): Promise<any | null> {
   try {
     const r = await fetch(
-      `https://polling.finance.naver.com/api/realtime/domestic/index/${code}`,
+      `https://m.stock.naver.com/api/index/${code}/basic`,
       { headers: HDRS },
     );
     if (!r.ok) return null;
-    const b = await r.json();
-    const d = b?.datas?.[0];
-    if (!d) return null;
+    const d = await r.json();
     const price = num(d.closePrice);
     if (!isFinite(price)) return null;
     const dc = String(d?.compareToPreviousPrice?.code ?? '3');
