@@ -8,20 +8,25 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Naver unlisted (비상장) endpoints
+      - name: Probe Naver unlisted (비상장) endpoints round 2
         run: |
           UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
-          get() { curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" "$1"; }
+          enc() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$1"; }
+          get() { echo "----- $1"; curl -s -H "User-Agent: $UA" -H "Referer: https://m.stock.naver.com/" "$1" | head -c 1200; echo ""; }
 
-          for Q in 비바리퍼블리카 컬리 무신사 토스 케이뱅크; do
-            echo "===== AC search: $Q ====="
-            get "https://ac.stock.naver.com/ac?q=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$Q")&target=stock,index,marketindexworld,ipo,unlisted&st=111" | head -c 2500
-            echo ""
-          done
+          Q=$(enc 비바리퍼블리카)
+          echo "##### integrated/full search candidates #####"
+          get "https://m.stock.naver.com/api/search/integration?query=$Q"
+          get "https://api.stock.naver.com/search/integration?query=$Q"
+          get "https://api.stock.naver.com/search/all?query=$Q"
+          get "https://m.stock.naver.com/api/search/all?query=$Q"
 
-          echo "===== api.stock.naver.com unlisted list ====="
-          get "https://api.stock.naver.com/stock/unlisted?page=1&pageSize=10" | head -c 1500
-          echo ""
-          echo "===== m.stock.naver.com home unlisted ====="
-          get "https://m.stock.naver.com/api/home/unlisted" | head -c 1500
-          echo ""
+          echo "##### unlisted-targeted autocomplete #####"
+          get "https://ac.stock.naver.com/ac?q=$Q&target=unlisted&st=111"
+          get "https://ac.stock.naver.com/ac?q=$Q&target=stock,unlisted,ipo,index&st=111&frm=stock"
+
+          echo "##### unlisted list / home #####"
+          get "https://api.stock.naver.com/unlisted/list?page=1&pageSize=5"
+          get "https://api.stock.naver.com/unlisted?page=1&pageSize=5"
+          get "https://m.stock.naver.com/api/unlisted/ranking?category=POPULAR&page=1&pageSize=5"
+          get "https://api.stock.naver.com/stock/unlisted/ranking?page=1&pageSize=5"
