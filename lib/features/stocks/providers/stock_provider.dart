@@ -27,6 +27,13 @@ class HoldingsNotifier extends StateNotifier<List<Holding>> {
         state = _service.loadHoldings();
       }
     });
+
+    // The listener above only fires on auth *transitions*. If the user is
+    // already signed in when this notifier is first created (e.g. they open
+    // the 내 주식 tab well after login), no transition occurs — so sync now.
+    if (_ref.read(authStateProvider).valueOrNull != null) {
+      sync();
+    }
   }
 
   final HoldingsService _service;
