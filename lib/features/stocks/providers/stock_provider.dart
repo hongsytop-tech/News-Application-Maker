@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:news_application_maker/core/providers/core_providers.dart';
+import 'package:news_application_maker/features/auth/providers/auth_provider.dart';
 import 'package:news_application_maker/features/stocks/models/holding.dart';
 import 'package:news_application_maker/features/stocks/models/stock_quote.dart';
 import 'package:news_application_maker/features/stocks/services/holdings_service.dart';
@@ -12,13 +13,29 @@ final holdingsServiceProvider = Provider<HoldingsService>((ref) {
   return HoldingsService(ref.watch(localStorageProvider));
 });
 
-/// The user's holdings list (persisted locally).
+/// The user's holdings list. Loads the local copy immediately and re-syncs
+/// from Supabase whenever auth state changes (so it follows the user across
+/// devices).
 class HoldingsNotifier extends StateNotifier<List<Holding>> {
-  HoldingsNotifier(this._service) : super(const []) {
+  HoldingsNotifier(this._service, this._ref) : super(const []) {
     state = _service.loadHoldings();
+
+    _ref.listen(authStateProvider, (_, next) {
+      if (next.valueOrNull != null) {
+        sync();
+      } else {
+        state = _service.loadHoldings();
+      }
+    });
   }
 
   final HoldingsService _service;
+  final Ref _ref;
+
+  /// Pulls the signed-in user's holdings from Supabase into local state.
+  Future<void> sync() async {
+    state = await _service.syncFromRemote();
+  }
 
   Future<void> add(Holding h) async {
     if (state.any((x) => x.code == h.code)) return;
@@ -45,7 +62,7 @@ class HoldingsNotifier extends StateNotifier<List<Holding>> {
 
 final holdingsProvider =
     StateNotifierProvider<HoldingsNotifier, List<Holding>>((ref) {
-  return HoldingsNotifier(ref.watch(holdingsServiceProvider));
+  return HoldingsNotifier(ref.watch(holdingsServiceProvider), ref);
 });
 
 /// Search results for the add-holding flow.
