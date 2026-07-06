@@ -13,6 +13,27 @@ final holdingsServiceProvider = Provider<HoldingsService>((ref) {
   return HoldingsService(ref.watch(localStorageProvider));
 });
 
+/// Cross-device sync status for the holdings list, surfaced in the UI so
+/// failures (not signed in, RLS/permission errors, network) are visible
+/// instead of silently swallowed.
+class HoldingsSync {
+  const HoldingsSync({this.syncing = false, this.error, this.signedIn = false});
+
+  final bool syncing;
+  final String? error;
+  final bool signedIn;
+
+  HoldingsSync copyWith({bool? syncing, String? error, bool? signedIn}) =>
+      HoldingsSync(
+        syncing: syncing ?? this.syncing,
+        error: error,
+        signedIn: signedIn ?? this.signedIn,
+      );
+}
+
+final holdingsSyncProvider =
+    StateProvider<HoldingsSync>((ref) => const HoldingsSync());
+
 /// The user's holdings list. Loads the local copy immediately and re-syncs
 /// from Supabase whenever auth state changes (so it follows the user across
 /// devices).
@@ -21,6 +42,7 @@ class HoldingsNotifier extends StateNotifier<List<Holding>> {
     state = _service.loadHoldings();
 
     _ref.listen(authStateProvider, (_, next) {
+      _statusUpdate();
       if (next.valueOrNull != null) {
         sync();
       } else {
@@ -28,31 +50,63 @@ class HoldingsNotifier extends StateNotifier<List<Holding>> {
       }
     });
 
-    // The listener above only fires on auth *transitions*. If the user is
-    // already signed in when this notifier is first created (e.g. they open
-    // the 내 주식 tab well after login), no transition occurs — so sync now.
-    if (_ref.read(authStateProvider).valueOrNull != null) {
-      sync();
-    }
+    // Defer writes to holdingsSyncProvider out of this notifier's build phase
+    // (Riverpod forbids modifying another provider during initialization).
+    // The listener above only fires on auth *transitions*, so if the user is
+    // already signed in when this notifier is created, sync explicitly here.
+    Future.microtask(() {
+      if (!mounted) return;
+      _statusUpdate();
+      if (_service.isSignedIn) sync();
+    });
   }
 
   final HoldingsService _service;
   final Ref _ref;
 
+  HoldingsSync get _status => _ref.read(holdingsSyncProvider);
+  set _status(HoldingsSync s) {
+    if (!mounted) return;
+    _ref.read(holdingsSyncProvider.notifier).state = s;
+  }
+
+  void _statusUpdate() {
+    _status = _status.copyWith(signedIn: _service.isSignedIn);
+  }
+
   /// Pulls the signed-in user's holdings from Supabase into local state.
+  /// Records any backend error into [holdingsSyncProvider] so the UI can show
+  /// it, rather than failing silently.
   Future<void> sync() async {
-    state = await _service.syncFromRemote();
+    _status = HoldingsSync(syncing: true, signedIn: _service.isSignedIn);
+    try {
+      final result = await _service.syncFromRemote();
+      if (!mounted) return;
+      state = result;
+      _status = HoldingsSync(signedIn: _service.isSignedIn);
+    } catch (e) {
+      _status = HoldingsSync(signedIn: _service.isSignedIn, error: e.toString());
+    }
+  }
+
+  Future<void> _persist() async {
+    try {
+      await _service.saveHoldings(state);
+      _status = HoldingsSync(signedIn: _service.isSignedIn);
+    } catch (e) {
+      _status = HoldingsSync(signedIn: _service.isSignedIn, error: e.toString());
+    }
   }
 
   Future<void> add(Holding h) async {
     if (state.any((x) => x.code == h.code)) return;
     state = [...state, h];
-    await _service.saveHoldings(state);
+    await _persist();
   }
 
   Future<void> remove(String code) async {
     state = state.where((x) => x.code != code).toList();
-    await _service.saveHoldings(state);
+    await _persist();
   }
 
   /// Moves a holding to reorder the list (and persists the new order).
@@ -63,7 +117,7 @@ class HoldingsNotifier extends StateNotifier<List<Holding>> {
     final item = list.removeAt(oldIndex);
     list.insert(newIndex.clamp(0, list.length), item);
     state = list;
-    await _service.saveHoldings(state);
+    await _persist();
   }
 }
 

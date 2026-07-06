@@ -33,53 +33,51 @@ class HoldingsService {
   String? get _userId =>
       SupabaseService.isConfigured ? SupabaseService.auth.currentUser?.id : null;
 
+  /// Whether cross-device sync is currently possible (backend configured and
+  /// a user is signed in).
+  bool get isSignedIn => _userId != null;
+
+  /// Pushes the whole ordered list to Supabase. Throws on failure so callers
+  /// can surface the error (RLS, auth, network …) instead of hiding it.
   Future<void> _pushRemote(List<Holding> holdings) async {
     final userId = _userId;
     if (userId == null) return;
-    try {
-      await SupabaseService.client.from(_table).upsert({
-        'user_id': userId,
-        'holdings': [for (final h in holdings) h.toJson()],
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id');
-    } catch (_) {
-      // Offline / transient failure — the local copy stays authoritative.
-    }
+    await SupabaseService.client.from(_table).upsert({
+      'user_id': userId,
+      'holdings': [for (final h in holdings) h.toJson()],
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id');
   }
 
   /// Pulls the signed-in user's remote holdings. If a remote list exists it
   /// wins (replaces local, keeping remote order). If the user has never synced
   /// but has local holdings (e.g. added before logging in), those are pushed
-  /// up instead. Returns the resolved list; returns the local list when signed
-  /// out or on error.
+  /// up instead. Returns the local list unchanged when signed out. Throws on a
+  /// backend error so the caller can show it.
   Future<List<Holding>> syncFromRemote() async {
     final userId = _userId;
     if (userId == null) return loadHoldings();
-    try {
-      final row = await SupabaseService.client
-          .from(_table)
-          .select('holdings')
-          .eq('user_id', userId)
-          .maybeSingle();
-      final remoteRaw = row?['holdings'];
-      final remote = remoteRaw is List
-          ? [
-              for (final e in remoteRaw)
-                Holding.fromJson((e as Map).cast<String, dynamic>()),
-            ]
-          : <Holding>[];
+    final row = await SupabaseService.client
+        .from(_table)
+        .select('holdings')
+        .eq('user_id', userId)
+        .maybeSingle();
+    final remoteRaw = row?['holdings'];
+    final remote = remoteRaw is List
+        ? [
+            for (final e in remoteRaw)
+              Holding.fromJson((e as Map).cast<String, dynamic>()),
+          ]
+        : <Holding>[];
 
-      if (remote.isNotEmpty) {
-        await _saveLocal(remote);
-        return remote;
-      }
-      // No remote row yet: seed it from whatever is stored locally.
-      final local = loadHoldings();
-      if (local.isNotEmpty) await _pushRemote(local);
-      return local;
-    } catch (_) {
-      return loadHoldings();
+    if (remote.isNotEmpty) {
+      await _saveLocal(remote);
+      return remote;
     }
+    // No remote row yet: seed it from whatever is stored locally.
+    final local = loadHoldings();
+    if (local.isNotEmpty) await _pushRemote(local);
+    return local;
   }
 
   ({List<StockQuote> quotes, List<StockQuote> indices, DateTime? updatedAt})

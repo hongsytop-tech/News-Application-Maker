@@ -17,11 +17,23 @@ class StocksScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final holdings = ref.watch(holdingsProvider);
     final state = ref.watch(quotesControllerProvider);
+    final syncState = ref.watch(holdingsSyncProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('내 주식'),
         actions: [
+          IconButton(
+            tooltip: '기기 간 동기화',
+            icon: syncState.syncing
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.sync),
+            onPressed: syncState.syncing
+                ? null
+                : () => ref.read(holdingsProvider.notifier).sync(),
+          ),
           IconButton(
             tooltip: '보유 종목 관리',
             icon: const Icon(Icons.tune),
@@ -46,6 +58,7 @@ class StocksScreen extends ConsumerWidget {
               child: Text('업데이트 실패: ${state.error}',
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
+          _SyncBanner(sync: syncState),
           // Fixed KOSPI/KOSDAQ indices at the top (not reorderable).
           if (state.indices.isNotEmpty) _IndexBar(indices: state.indices),
           const Divider(height: 1),
@@ -98,6 +111,48 @@ class _UpdateBar extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Shows cross-device sync state: not signed in, an error, or nothing when
+/// everything is fine. Makes silent sync failures visible for diagnosis.
+class _SyncBanner extends StatelessWidget {
+  const _SyncBanner({required this.sync});
+
+  final HoldingsSync sync;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (sync.error != null) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text('동기화 실패: ${sync.error}',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onErrorContainer)),
+      );
+    }
+    if (!sync.signedIn) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text('로그인하면 기기 간에 보유 종목이 동기화됩니다.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.outline)),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
