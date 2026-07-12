@@ -10,6 +10,10 @@ verify_jwt = false
 # Also called signed-out (on-demand summaries).
 verify_jwt = false
 
+[functions.ai-classify]
+# Batch article sub-category classification; called from the feed (signed-out ok).
+verify_jwt = false
+
 [functions.ai-taste]
 # Taste profiling requires a signed-in user (identified from the JWT).
 verify_jwt = true

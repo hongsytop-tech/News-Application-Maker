@@ -98,6 +98,25 @@ final newsFeedProvider =
     if (be == null) return -1;
     return be.compareTo(ae);
   });
+
+  // LLM sub-category enrichment (best-effort, cached server-side per URL). Only
+  // the top slice actually shown is classified to bound cost; a slow first
+  // (uncached) call is capped by a timeout, and any failure leaves articles
+  // unclassified so the feed always renders.
+  final head = articles.take(30).toList();
+  final labels = await service.classify(head).timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => <String, ({String subcategory, List<String> tags})>{},
+      );
+  if (labels.isNotEmpty) {
+    for (var i = 0; i < articles.length; i++) {
+      final l = labels[articles[i].url];
+      if (l != null) {
+        articles[i] =
+            articles[i].copyWith(subcategory: l.subcategory, tags: l.tags);
+      }
+    }
+  }
   return articles;
 });
 

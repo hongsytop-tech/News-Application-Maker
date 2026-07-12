@@ -114,6 +114,13 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
                           style: theme.textTheme.bodySmall
                               ?.copyWith(color: theme.colorScheme.outline),
                         ),
+                        if (article.subcategory.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          _SubTags(
+                            subcategory: article.subcategory,
+                            tags: article.tags,
+                          ),
+                        ],
                         if (translate != null) ...[
                           const SizedBox(height: 6),
                           _TranslatedSummary(
@@ -180,6 +187,51 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
       parts.add(DateFormat.MMMd().add_jm().format(a.publishedAt!.toLocal()));
     }
     return parts.join(' · ');
+  }
+}
+
+/// LLM-assigned sub-category (filled) + up to a few keyword tags (outlined),
+/// shown under the article meta line.
+class _SubTags extends StatelessWidget {
+  const _SubTags({required this.subcategory, required this.tags});
+
+  final String subcategory;
+  final List<String> tags;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            subcategory,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSecondaryContainer,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        for (final t in tags.take(3))
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Text('#$t',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: theme.colorScheme.outline)),
+          ),
+      ],
+    );
   }
 }
 

@@ -6,6 +6,7 @@ import 'package:news_application_maker/core/config/env.dart';
 import 'package:news_application_maker/core/supabase/supabase_service.dart';
 import 'package:news_application_maker/core/utils/html_text.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
+import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/news_feed/models/news_source.dart';
 
 /// Talks to the Supabase Edge Function (`crawl-proxy`) which fetches and parses
@@ -103,6 +104,46 @@ class NewsService {
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final cleaned = stripHtml(body['content'] as String?);
     return article.copyWith(content: cleaned.isEmpty ? null : cleaned);
+  }
+
+  /// Classifies [articles] into fine-grained sub-categories + tags via the
+  /// `ai-classify` Edge Function. Returns a map of article url → (subcategory,
+  /// tags). Best-effort: returns an empty map when the backend is absent or on
+  /// any failure, so the feed still renders without sub-labels.
+  Future<Map<String, ({String subcategory, List<String> tags})>> classify(
+      List<NewsArticle> articles) async {
+    if (!SupabaseService.isConfigured || articles.isEmpty) return const {};
+    try {
+      final res = await SupabaseService.client.functions.invoke(
+        'ai-classify',
+        body: {
+          'articles': [
+            for (final a in articles)
+              {
+                'url': a.url,
+                'title': a.title,
+                'summary': a.summary,
+                'allowed': NewsCategory.subLabelsFor(a.categoryId),
+              },
+          ],
+        },
+      );
+      final data = res.data;
+      final list = (data is Map ? data['results'] : null) as List? ?? const [];
+      final out = <String, ({String subcategory, List<String> tags})>{};
+      for (final e in list) {
+        if (e is! Map) continue;
+        final url = (e['url'] ?? '').toString();
+        if (url.isEmpty) continue;
+        out[url] = (
+          subcategory: (e['subcategory'] ?? '').toString(),
+          tags: [for (final t in (e['tags'] as List? ?? const [])) t.toString()],
+        );
+      }
+      return out;
+    } catch (_) {
+      return const {};
+    }
   }
 
   void _ensureProxyConfigured() {

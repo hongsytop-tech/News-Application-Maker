@@ -122,6 +122,30 @@ class NewsCategory {
         koQuery: '맛집 OR 음식', enQuery: 'food'),
   ];
 
+  /// Fine-grained sub-labels the LLM classifier may assign, keyed by top-level
+  /// [group]. The classifier must pick exactly one of these (or '기타') for an
+  /// article in that group. Kept as a fixed list so labels never explode; the
+  /// stored `subcategory` on an article is one of these strings verbatim.
+  static const subLabels = <String, List<String>>{
+    '시사': ['외교·안보', '사건사고', '재난', '선거·정당', '사회·복지'],
+    '경제': ['증시', '부동산', '가상자산', '산업·기업', '금융·환율', '정책·세금', '고용·노동', '무역·통상'],
+    '기술': ['AI', '반도체', '모바일', '플랫폼·IT서비스', '게임', '보안'],
+    '과학': ['우주', '기후·환경', '생명과학'],
+    '건강': ['질병·의료', '영양·피트니스', '정신건강'],
+    '스포츠': ['축구', '야구', '농구', 'e스포츠', '골프'],
+    '문화·연예': ['영화', '음악·K팝', '드라마·TV', '셀럽', '공연·전시'],
+    '라이프': ['여행', '음식·맛집', '패션·뷰티'],
+  };
+
+  /// Allowed sub-labels for an article surfaced under [categoryId], resolved via
+  /// its group. Empty when the category is unknown (e.g. free-text search),
+  /// in which case the article is left unclassified.
+  static List<String> subLabelsFor(String categoryId) {
+    final c = byId(categoryId);
+    if (c == null) return const [];
+    return subLabels[c.group] ?? const [];
+  }
+
   /// Categories shown by default (used to seed new users' settings).
   static List<NewsCategory> get defaults =>
       all.where((c) => c.defaultOn).toList();
