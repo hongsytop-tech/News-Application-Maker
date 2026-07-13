@@ -146,6 +146,14 @@ class NewsCategory {
     return subLabels[c.group] ?? const [];
   }
 
+  /// Top-level categories: the true Google News topic feeds. These are the only
+  /// user-selectable / fetched categories in the two-tier model — finer topics
+  /// (증시, 부동산, AI, …) are provided by the LLM classifier ([subLabels]),
+  /// not by separate search feeds. Query-based entries remain in [all] only for
+  /// backward compatibility with older saved settings.
+  static List<NewsCategory> get topLevel =>
+      all.where((c) => c.googleTopic != null).toList();
+
   /// Categories shown by default (used to seed new users' settings).
   static List<NewsCategory> get defaults =>
       all.where((c) => c.defaultOn).toList();

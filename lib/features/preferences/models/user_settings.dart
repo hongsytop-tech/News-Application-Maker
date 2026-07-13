@@ -16,12 +16,14 @@ class UserSettings {
   factory UserSettings.initial() =>
       UserSettings(enabledCategoryIds: _defaultIds);
 
-  /// Resolves to the ordered list of enabled categories (falls back to
-  /// defaults when nothing is configured).
+  /// Resolves to the ordered list of enabled top-level categories. Only
+  /// top-level (topic-feed) categories are selectable now; any legacy
+  /// query-subtopic ids in saved settings are ignored, and finer topics come
+  /// from the LLM classifier instead.
   List<NewsCategory> get enabledCategories {
     final ids = enabledCategoryIds.isEmpty ? _defaultIds : enabledCategoryIds;
     final list = [
-      for (final c in NewsCategory.all)
+      for (final c in NewsCategory.topLevel)
         if (ids.contains(c.id)) c,
     ];
     return list.isEmpty ? NewsCategory.defaults : list;

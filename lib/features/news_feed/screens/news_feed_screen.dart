@@ -144,6 +144,10 @@ class _FilterBar extends ConsumerWidget {
     final expanded = ref.watch(_categoriesExpandedProvider);
     final selectedLabel =
         selected == null ? '전체' : (NewsCategory.byId(selected)?.label ?? '전체');
+    // Second-tier: the LLM sub-labels for the selected top category.
+    final subLabels =
+        selected == null ? const <String>[] : NewsCategory.subLabelsFor(selected);
+    final activeSub = ref.watch(subcategoryFilterProvider);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
@@ -207,6 +211,38 @@ class _FilterBar extends ConsumerWidget {
                       },
                     ),
                 ],
+              ),
+            ),
+          // Second-tier sub-category chips for the selected top category.
+          if (subLabels.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, bottom: 2),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('전체'),
+                      selected: activeSub == null,
+                      showCheckmark: false,
+                      onSelected: (_) => ref
+                          .read(subcategoryFilterProvider.notifier)
+                          .state = null,
+                    ),
+                    for (final s in subLabels) ...[
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: Text(s),
+                        selected: activeSub == s,
+                        showCheckmark: false,
+                        onSelected: (_) => ref
+                                .read(subcategoryFilterProvider.notifier)
+                                .state =
+                            activeSub == s ? null : s,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           const SizedBox(height: 6),

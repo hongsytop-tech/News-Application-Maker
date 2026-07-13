@@ -21,29 +21,20 @@ class CategorySettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
-              '피드에 표시할 카테고리를 선택하세요. 세부 주제는 기본적으로 꺼져 있습니다.',
+              '피드에 표시할 대분류를 선택하세요. 세부 주제(증시·부동산·AI 등)는 '
+              'AI가 기사마다 자동으로 분류해 칩으로 보여줍니다.',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.outline),
             ),
           ),
-          for (final group in NewsCategory.groups) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Text(
-                group,
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(color: theme.colorScheme.primary),
-              ),
+          for (final c in NewsCategory.topLevel)
+            SwitchListTile(
+              dense: true,
+              title: Text(c.label),
+              value: settings.isEnabled(c.id),
+              onChanged: (_) =>
+                  ref.read(settingsProvider.notifier).toggleCategory(c.id),
             ),
-            for (final c in NewsCategory.inGroup(group))
-              SwitchListTile(
-                dense: true,
-                title: Text(c.label),
-                value: settings.isEnabled(c.id),
-                onChanged: (_) =>
-                    ref.read(settingsProvider.notifier).toggleCategory(c.id),
-              ),
-          ],
           const SizedBox(height: 24),
         ],
       ),
