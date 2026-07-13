@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:news_application_maker/core/utils/lang.dart';
 import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
@@ -29,6 +30,14 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
   bool _showSummary = false;
 
   NewsArticle get article => widget.article;
+
+  /// Opens the original article URL in an external browser tab.
+  Future<void> _openOriginal() async {
+    final uri = Uri.parse(article.url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   /// Mark as read: hide the article from the feed (kept in "확인한 뉴스" so it
   /// can be brought back). Not a preference signal.
@@ -155,6 +164,12 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
                       setState(() => _showSummary = !_showSummary),
                 ),
                 const Spacer(),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '원문 보기',
+                  icon: const Icon(Icons.open_in_new),
+                  onPressed: _openOriginal,
+                ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: bookmarked ? '북마크 해제' : '북마크',

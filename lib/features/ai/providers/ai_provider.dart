@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:news_application_maker/core/providers/core_providers.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
+import 'package:news_application_maker/features/news_feed/providers/news_feed_provider.dart';
 import 'package:news_application_maker/features/preferences/services/taste_service.dart';
 
 final aiServiceProvider = Provider<AiService>((ref) => const AiService());
@@ -21,6 +22,23 @@ final articleSummaryProvider =
 final articleTranslationProvider = FutureProvider.autoDispose
     .family<({String title, String summary}), NewsArticle>((ref, article) async {
   return ref.watch(aiServiceProvider).translate(article);
+});
+
+/// Lazily translates the full article body into Korean. Loads the readable
+/// body first (via [articleContentProvider]), then sends it for translation.
+final articleBodyTranslationProvider = FutureProvider.autoDispose
+    .family<String, NewsArticle>((ref, article) async {
+  final loaded = await ref.watch(articleContentProvider(article).future);
+  final content = (loaded.content?.isNotEmpty ?? false)
+      ? loaded.content!
+      : loaded.summary;
+  if (content.trim().isEmpty) {
+    throw const AiException('번역할 본문을 불러오지 못했습니다.');
+  }
+  return ref.watch(aiServiceProvider).translateBody(
+        url: article.url,
+        content: content,
+      );
 });
 
 /// The user's learned taste profile. Hydrated from the local cache instantly,

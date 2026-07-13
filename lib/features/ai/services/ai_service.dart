@@ -49,6 +49,24 @@ class AiService {
     throw const AiException('Could not translate this article.');
   }
 
+  /// Translates the full article body [content] (at [url]) into Korean, cached
+  /// server-side. Returns the translated body text.
+  Future<String> translateBody(
+      {required String url, required String content}) async {
+    final res = await SupabaseService.client.functions.invoke(
+      'ai-translate',
+      body: {'url': url, 'content': content},
+    );
+    final data = res.data;
+    if (data is Map && data['content'] is String) {
+      return data['content'] as String;
+    }
+    if (data is Map && data['error'] != null) {
+      throw AiException('번역 실패: ${data['error']}');
+    }
+    throw const AiException('Could not translate this article.');
+  }
+
   /// Converts a natural-language [request] into Google News search queries
   /// (Korean + English) plus a few topic tags.
   Future<({String ko, String en, List<String> keywords})> searchKeywords(

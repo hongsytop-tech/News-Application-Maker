@@ -53,6 +53,8 @@ class ArticleDetailScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final bookmarked = ref.watch(isBookmarkedProvider(article.url));
     final fullArticle = ref.watch(articleContentProvider(article));
+    final aiAvailable = ref.watch(aiServiceProvider).isAvailable;
+    final showTranslation = ref.watch(_showTranslationProvider(article.url));
 
     // Translate foreign headlines to Korean (shares the list's cached call).
     final translate = (ref.read(aiServiceProvider).isAvailable &&
@@ -100,28 +102,45 @@ class ArticleDetailScreen extends ConsumerWidget {
             ),
           const SizedBox(height: 16),
 
-          _AiSummaryCard(article: article),
-          const SizedBox(height: 16),
+          // On-demand full-body Korean translation (replaces the old auto AI
+          // summary). Tap to translate; tap again to return to the original.
+          if (aiAvailable) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                icon: Icon(
+                    showTranslation ? Icons.article_outlined : Icons.translate),
+                label: Text(showTranslation ? '원문 보기' : '한국어로 번역'),
+                onPressed: () => ref
+                    .read(_showTranslationProvider(article.url).notifier)
+                    .state = !showTranslation,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
-          fullArticle.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
+          if (showTranslation)
+            _TranslatedBody(article: article)
+          else
+            fullArticle.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, __) => Text(
+                article.summary.isNotEmpty
+                    ? article.summary
+                    : 'Could not load the full article. Tap the link icon to open '
+                        'the original.',
+                style: theme.textTheme.bodyLarge,
+              ),
+              data: (loaded) => Text(
+                (loaded.content?.isNotEmpty ?? false)
+                    ? loaded.content!
+                    : loaded.summary,
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+              ),
             ),
-            error: (_, __) => Text(
-              article.summary.isNotEmpty
-                  ? article.summary
-                  : 'Could not load the full article. Tap the link icon to open '
-                      'the original.',
-              style: theme.textTheme.bodyLarge,
-            ),
-            data: (loaded) => Text(
-              (loaded.content?.isNotEmpty ?? false)
-                  ? loaded.content!
-                  : loaded.summary,
-              style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-            ),
-          ),
           const SizedBox(height: 24),
           Center(
             child: FilledButton.tonalIcon(
@@ -158,66 +177,42 @@ class _MetaLine extends StatelessWidget {
   }
 }
 
-/// AI summary, generated automatically when the article opens (cached
-/// server-side by the ai-summarize Edge Function so repeat opens are free).
-class _AiSummaryCard extends ConsumerWidget {
-  const _AiSummaryCard({required this.article});
+/// Whether the article detail is currently showing the Korean translation
+/// (per article url) instead of the original body.
+final _showTranslationProvider =
+    StateProvider.autoDispose.family<bool, String>((ref, url) => false);
+
+/// The article body translated into Korean (fetched on demand, cached
+/// server-side by the ai-translate Edge Function so repeat views are free).
+class _TranslatedBody extends ConsumerWidget {
+  const _TranslatedBody({required this.article});
   final NewsArticle article;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final available = ref.watch(aiServiceProvider).isAvailable;
-
-    return Card(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final translation = ref.watch(articleBodyTranslationProvider(article));
+    return translation.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                Icon(Icons.auto_awesome,
-                    size: 18, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Text('AI 요약', style: theme.textTheme.titleSmall),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (!available)
-              const Text('AI 요약을 사용하려면 백엔드 설정이 필요합니다.')
-            else
-              _Body(article: article),
+            SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 12),
+            Text('AI가 번역하는 중…'),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _Body extends ConsumerWidget {
-  const _Body({required this.article});
-  final NewsArticle article;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summary = ref.watch(articleSummaryProvider(article));
-    return summary.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
-        child: Row(children: [
-          SizedBox(
-              width: 16, height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2)),
-          SizedBox(width: 12),
-          Text('AI가 요약하는 중…'),
-        ]),
+      error: (e, _) => Text(
+        e is AiException ? e.message : e.toString(),
+        style: theme.textTheme.bodyLarge,
       ),
-      error: (e, _) => Text(e is AiException ? e.message : e.toString()),
       data: (text) => Text(
         text,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
       ),
     );
   }
