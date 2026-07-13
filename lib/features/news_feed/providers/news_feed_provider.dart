@@ -34,6 +34,11 @@ final classifyStatusProvider = StateProvider<String?>((ref) => null);
 /// the user enabled in Settings, merged together (the default view).
 final selectedCategoryProvider = StateProvider<String?>((ref) => null);
 
+/// Active LLM sub-category filter (e.g. '증시'). `null` shows all. Applied
+/// client-side to the already-loaded + classified feed, so toggling it never
+/// refetches. Set by tapping a sub-category chip on an article.
+final subcategoryFilterProvider = StateProvider<String?>((ref) => null);
+
 /// Region filter: `null` shows both domestic and international.
 final regionFilterProvider = StateProvider<NewsRegion?>((ref) => null);
 

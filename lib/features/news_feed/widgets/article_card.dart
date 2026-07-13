@@ -8,6 +8,7 @@ import 'package:news_application_maker/features/ai/providers/ai_provider.dart';
 import 'package:news_application_maker/features/ai/services/ai_service.dart';
 import 'package:news_application_maker/features/bookmarks/providers/bookmark_provider.dart';
 import 'package:news_application_maker/features/news_feed/models/news_article.dart';
+import 'package:news_application_maker/features/news_feed/providers/news_feed_provider.dart';
 import 'package:news_application_maker/features/news_feed/widgets/reaction_buttons.dart';
 import 'package:news_application_maker/features/trash/providers/trash_provider.dart';
 
@@ -119,6 +120,9 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
                           _SubTags(
                             subcategory: article.subcategory,
                             tags: article.tags,
+                            onTapSubcategory: () => ref
+                                .read(subcategoryFilterProvider.notifier)
+                                .state = article.subcategory,
                           ),
                         ],
                         if (translate != null) ...[
@@ -193,10 +197,17 @@ class _ArticleCardState extends ConsumerState<ArticleCard> {
 /// LLM-assigned sub-category (filled) + up to a few keyword tags (outlined),
 /// shown under the article meta line.
 class _SubTags extends StatelessWidget {
-  const _SubTags({required this.subcategory, required this.tags});
+  const _SubTags({
+    required this.subcategory,
+    required this.tags,
+    this.onTapSubcategory,
+  });
 
   final String subcategory;
   final List<String> tags;
+
+  /// Tapping the sub-category chip filters the feed to that sub-category.
+  final VoidCallback? onTapSubcategory;
 
   @override
   Widget build(BuildContext context) {
@@ -205,17 +216,21 @@ class _SubTags extends StatelessWidget {
       spacing: 6,
       runSpacing: 4,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondaryContainer,
+        Material(
+          color: theme.colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(6),
+          child: InkWell(
             borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            subcategory,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
-              fontWeight: FontWeight.w600,
+            onTap: onTapSubcategory,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Text(
+                subcategory,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),

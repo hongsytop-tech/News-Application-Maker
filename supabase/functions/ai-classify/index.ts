@@ -36,7 +36,7 @@ const restHeaders = {
   'content-type': 'application/json',
 };
 
-const MODE = 'ai_classify_v1';
+const MODE = 'ai_classify_v2';
 
 /// Strips Markdown code fences / stray prose so JSON.parse succeeds even when
 /// the model wraps its answer in ```json ... ```.
@@ -108,9 +108,15 @@ async function classifyBatch(items: any[]): Promise<Map<number, Classification>>
       system:
         '너는 한국어 뉴스 분류기다. 입력은 기사 배열이며 각 기사에는 고유 index(i), ' +
         '허용 세부라벨 목록(allowed), 제목(title), 요약(summary)이 있다. ' +
-        '각 기사마다: (1) subcategory 는 그 기사의 allowed 목록 중 내용에 가장 맞는 ' +
-        '라벨 정확히 하나. 어느 것에도 명확히 맞지 않으면 "기타". allowed 밖의 라벨은 절대 금지. ' +
-        '(2) tags 는 기사의 핵심 고유명사·키워드를 한국어로 최대 3개(짧게). ' +
+        '각 기사마다 두 가지를 정한다.\n' +
+        '(1) subcategory: 그 기사의 allowed 목록 중 내용에 가장 맞는 라벨 정확히 하나. ' +
+        '어느 것에도 명확히 맞지 않으면 "기타". allowed 밖의 라벨은 절대 금지.\n' +
+        '(2) tags: 기사의 핵심을 식별하는 고유명사 최대 3개(짧게). ' +
+        '반드시 다음만 포함하라 — 기업/브랜드/종목명, 인물, 기관·국가·지역, 제품·서비스명, ' +
+        '지수·통화·상품명(예: 코스피, 나스닥, 비트코인, 유가). ' +
+        '다음은 절대 태그로 쓰지 마라 — 일반명사·시황용어(시장, 시황, 개장, 마감, 실적, 전망, 가격, ' +
+        '급등, 급락, 규제), 연도·기간(2026년, 4년), 순수 숫자, 동사·형용사. ' +
+        '적합한 고유명사가 없으면 tags는 빈 배열 []로 둔다(억지로 채우지 마라).\n' +
         '오직 유효한 JSON 배열로만 답하라: ' +
         '[{"i":0,"subcategory":"<라벨>","tags":["..."]}]. ' +
         'JSON 밖의 설명이나 코드펜스는 쓰지 마라.',

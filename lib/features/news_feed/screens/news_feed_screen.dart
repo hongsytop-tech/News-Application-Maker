@@ -49,6 +49,7 @@ class NewsFeedScreen extends ConsumerWidget {
           const _FilterBar(),
           const Divider(height: 1),
           const _ClassifyStatusBanner(),
+          const _SubcategoryFilterBar(),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => ref.refresh(newsFeedProvider.future),
@@ -91,6 +92,35 @@ class _ClassifyStatusBanner extends ConsumerWidget {
         '카테고리 세분화(AI) 실패: $err',
         style: theme.textTheme.bodySmall
             ?.copyWith(color: theme.colorScheme.onErrorContainer),
+      ),
+    );
+  }
+}
+
+/// Active sub-category filter indicator + clear button. Hidden when no filter.
+class _SubcategoryFilterBar extends ConsumerWidget {
+  const _SubcategoryFilterBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sub = ref.watch(subcategoryFilterProvider);
+    if (sub == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      child: Row(
+        children: [
+          Icon(Icons.filter_alt, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text('세부 카테고리', style: theme.textTheme.bodySmall),
+          const SizedBox(width: 6),
+          InputChip(
+            label: Text(sub),
+            onDeleted: () =>
+                ref.read(subcategoryFilterProvider.notifier).state = null,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
   }
@@ -162,6 +192,7 @@ class _FilterBar extends ConsumerWidget {
                     showCheckmark: false,
                     onSelected: (_) {
                       ref.read(selectedCategoryProvider.notifier).state = null;
+                      ref.read(subcategoryFilterProvider.notifier).state = null;
                     },
                   ),
                   for (final c in categories)
@@ -171,6 +202,8 @@ class _FilterBar extends ConsumerWidget {
                       showCheckmark: false,
                       onSelected: (_) {
                         ref.read(selectedCategoryProvider.notifier).state = c.id;
+                        ref.read(subcategoryFilterProvider.notifier).state =
+                            null;
                       },
                     ),
                 ],
@@ -208,8 +241,10 @@ class _RegionChip extends ConsumerWidget {
       label: Text(label),
       selected: value == current,
       showCheckmark: false,
-      onSelected: (_) =>
-          ref.read(regionFilterProvider.notifier).state = value,
+      onSelected: (_) {
+        ref.read(regionFilterProvider.notifier).state = value;
+        ref.read(subcategoryFilterProvider.notifier).state = null;
+      },
     );
   }
 }
@@ -223,14 +258,22 @@ class _FeedList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Hide articles the user moved to the trash.
     final trashed = ref.watch(trashedUrlsProvider);
-    final visible =
-        articles.where((a) => !trashed.contains(a.url)).toList();
+    // Optional client-side sub-category filter (set by tapping a chip).
+    final subFilter = ref.watch(subcategoryFilterProvider);
+    final visible = articles
+        .where((a) => !trashed.contains(a.url))
+        .where((a) => subFilter == null || a.subcategory == subFilter)
+        .toList();
 
     if (visible.isEmpty) {
       return ListView(
-        children: const [
-          SizedBox(height: 120),
-          Center(child: Text('표시할 기사가 없습니다. 당겨서 새로고침하세요.')),
+        children: [
+          const SizedBox(height: 120),
+          Center(
+            child: Text(subFilter == null
+                ? '표시할 기사가 없습니다. 당겨서 새로고침하세요.'
+                : "'$subFilter' 세부 카테고리에 표시할 기사가 없습니다."),
+          ),
         ],
       );
     }
