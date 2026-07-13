@@ -108,42 +108,42 @@ class NewsService {
 
   /// Classifies [articles] into fine-grained sub-categories + tags via the
   /// `ai-classify` Edge Function. Returns a map of article url → (subcategory,
-  /// tags). Best-effort: returns an empty map when the backend is absent or on
-  /// any failure, so the feed still renders without sub-labels.
+  /// tags). Returns an empty map when the backend is absent. Throws on a
+  /// backend error so the caller can surface the cause (instead of silently
+  /// showing no chips).
   Future<Map<String, ({String subcategory, List<String> tags})>> classify(
       List<NewsArticle> articles) async {
     if (!SupabaseService.isConfigured || articles.isEmpty) return const {};
-    try {
-      final res = await SupabaseService.client.functions.invoke(
-        'ai-classify',
-        body: {
-          'articles': [
-            for (final a in articles)
-              {
-                'url': a.url,
-                'title': a.title,
-                'summary': a.summary,
-                'allowed': NewsCategory.subLabelsFor(a.categoryId),
-              },
-          ],
-        },
-      );
-      final data = res.data;
-      final list = (data is Map ? data['results'] : null) as List? ?? const [];
-      final out = <String, ({String subcategory, List<String> tags})>{};
-      for (final e in list) {
-        if (e is! Map) continue;
-        final url = (e['url'] ?? '').toString();
-        if (url.isEmpty) continue;
-        out[url] = (
-          subcategory: (e['subcategory'] ?? '').toString(),
-          tags: [for (final t in (e['tags'] as List? ?? const [])) t.toString()],
-        );
-      }
-      return out;
-    } catch (_) {
-      return const {};
+    final res = await SupabaseService.client.functions.invoke(
+      'ai-classify',
+      body: {
+        'articles': [
+          for (final a in articles)
+            {
+              'url': a.url,
+              'title': a.title,
+              'summary': a.summary,
+              'allowed': NewsCategory.subLabelsFor(a.categoryId),
+            },
+        ],
+      },
+    );
+    final data = res.data;
+    if (data is Map && data['error'] != null) {
+      throw NewsServiceException('ai-classify: ${data['error']}');
     }
+    final list = (data is Map ? data['results'] : null) as List? ?? const [];
+    final out = <String, ({String subcategory, List<String> tags})>{};
+    for (final e in list) {
+      if (e is! Map) continue;
+      final url = (e['url'] ?? '').toString();
+      if (url.isEmpty) continue;
+      out[url] = (
+        subcategory: (e['subcategory'] ?? '').toString(),
+        tags: [for (final t in (e['tags'] as List? ?? const [])) t.toString()],
+      );
+    }
+    return out;
   }
 
   void _ensureProxyConfigured() {

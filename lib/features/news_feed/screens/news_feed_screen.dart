@@ -48,6 +48,7 @@ class NewsFeedScreen extends ConsumerWidget {
         children: [
           const _FilterBar(),
           const Divider(height: 1),
+          const _ClassifyStatusBanner(),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => ref.refresh(newsFeedProvider.future),
@@ -63,6 +64,33 @@ class NewsFeedScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shows why LLM sub-category chips are missing, if the last classify call
+/// failed. Silent when classification succeeded (chips speak for themselves).
+class _ClassifyStatusBanner extends ConsumerWidget {
+  const _ClassifyStatusBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final err = ref.watch(classifyStatusProvider);
+    if (err == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '카테고리 세분화(AI) 실패: $err',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onErrorContainer),
       ),
     );
   }

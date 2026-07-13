@@ -103,7 +103,7 @@ async function classifyBatch(items: any[]): Promise<Map<number, Classification>>
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-haiku-4-5',
       max_tokens: 2000,
       system:
         '너는 한국어 뉴스 분류기다. 입력은 기사 배열이며 각 기사에는 고유 index(i), ' +

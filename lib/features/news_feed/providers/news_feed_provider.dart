@@ -25,6 +25,11 @@ const _economyKeywords = [
   'dow ', 'crypto', 'bitcoin', 'ipo', 'earnings', 'wall street', 'inflation',
 ];
 
+/// Last LLM-classification status for the feed: null = OK/none, otherwise a
+/// human-readable error surfaced as a banner (so a failing ai-classify call is
+/// visible instead of silently showing no chips).
+final classifyStatusProvider = StateProvider<String?>((ref) => null);
+
 /// The category tab the user is viewing. `null` means "전체" — every category
 /// the user enabled in Settings, merged together (the default view).
 final selectedCategoryProvider = StateProvider<String?>((ref) => null);
@@ -101,14 +106,12 @@ final newsFeedProvider =
 
   // LLM sub-category enrichment (best-effort, cached server-side per URL). Only
   // the top slice actually shown is classified to bound cost; a slow first
-  // (uncached) call is capped by a timeout, and any failure leaves articles
-  // unclassified so the feed always renders.
+  // (uncached) call is capped by a timeout. Any failure is recorded in
+  // classifyStatusProvider (shown as a banner) but never breaks the feed.
   final head = articles.take(30).toList();
-  final labels = await service.classify(head).timeout(
-        const Duration(seconds: 8),
-        onTimeout: () => <String, ({String subcategory, List<String> tags})>{},
-      );
-  if (labels.isNotEmpty) {
+  try {
+    final labels =
+        await service.classify(head).timeout(const Duration(seconds: 12));
     for (var i = 0; i < articles.length; i++) {
       final l = labels[articles[i].url];
       if (l != null) {
@@ -116,6 +119,9 @@ final newsFeedProvider =
             articles[i].copyWith(subcategory: l.subcategory, tags: l.tags);
       }
     }
+    ref.read(classifyStatusProvider.notifier).state = null;
+  } catch (e) {
+    ref.read(classifyStatusProvider.notifier).state = e.toString();
   }
   return articles;
 });
