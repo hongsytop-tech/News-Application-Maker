@@ -15,6 +15,8 @@ class EventService {
 
   static const _catKey = 'affinity.categories.v1';
   static const _srcKey = 'affinity.sources.v1';
+  static const _subKey = 'affinity.subcategories.v1';
+  static const _tagKey = 'affinity.tags.v1';
   static const _table = 'user_events';
 
   // --- Local affinity counts --------------------------------------------
@@ -33,6 +35,8 @@ class EventService {
 
   Map<String, int> get categoryCounts => _counts(_catKey);
   Map<String, int> get sourceCounts => _counts(_srcKey);
+  Map<String, int> get subcategoryCounts => _counts(_subKey);
+  Map<String, int> get tagCounts => _counts(_tagKey);
 
   // --- Recording ---------------------------------------------------------
 
@@ -48,6 +52,13 @@ class EventService {
     final w = _weight(type);
     if (article.categoryId.isNotEmpty) await _bump(_catKey, article.categoryId, w);
     if (article.sourceName.isNotEmpty) await _bump(_srcKey, article.sourceName, w);
+    // Fine-grained LLM signals: sub-category + tags feed personalization.
+    if (article.subcategory.isNotEmpty) {
+      await _bump(_subKey, article.subcategory, w);
+    }
+    for (final t in article.tags) {
+      if (t.isNotEmpty) await _bump(_tagKey, t, w);
+    }
     await _pushRemote(type, article);
   }
 

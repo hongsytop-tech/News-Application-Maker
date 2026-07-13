@@ -7,6 +7,7 @@ import 'package:news_application_maker/features/news_feed/models/news_article.da
 import 'package:news_application_maker/features/news_feed/models/news_category.dart';
 import 'package:news_application_maker/features/news_feed/models/news_source.dart';
 import 'package:news_application_maker/features/news_feed/services/news_service.dart';
+import 'package:news_application_maker/features/preferences/providers/recommendation_provider.dart';
 import 'package:news_application_maker/features/preferences/providers/settings_provider.dart';
 
 final newsServiceProvider = Provider<NewsService>((ref) {
@@ -18,6 +19,9 @@ final newsServiceProvider = Provider<NewsService>((ref) {
 /// Explicit baseline emphasis on economy / investment news, applied on top of
 /// the learned taste profile so these topics rank higher.
 const _economyCategories = {'business', 'stock', 'crypto', 'realestate'};
+/// Economy emphasis via the LLM sub-category (works for articles that arrive
+/// through a broad topic feed but are really about markets/property/crypto).
+const _economySubcategories = {'증시', '부동산', '가상자산', '금융·환율', '산업·기업'};
 const _economyKeywords = [
   '경제', '투자', '증시', '주식', '금리', '부동산', '코스피', '코스닥', '환율',
   '비트코인', '가상자산', '반도체', '펀드', '채권', '상장', '실적', '인플레이션',
@@ -59,6 +63,12 @@ final newsFeedProvider =
   final catW = taste.categoryWeights;
   final kwW = taste.keywordWeights;
   final srcW = taste.sourceWeights;
+  // Instant local affinity for LLM sub-categories + tags (from open/bookmark/
+  // like/dislike). Used to rank articles in the user's favoured sub-topics
+  // higher once they've been classified.
+  final events = ref.read(eventServiceProvider);
+  final subAff = events.subcategoryCounts;
+  final tagAff = events.tagCounts;
 
   // A specific (still-enabled) category, or "전체" → every enabled category.
   final showAll = selected == null || !enabled.any((c) => c.id == selected);
@@ -94,20 +104,34 @@ final newsFeedProvider =
     h += (srcW[a.sourceName] ?? 0).clamp(0.0, 1.0) * 4;
     // Explicit economy / investment priority.
     if (_economyCategories.contains(a.categoryId)) h += 12;
+    if (_economySubcategories.contains(a.subcategory)) h += 8;
     if (_economyKeywords.any(title.contains)) h += 8;
-    return h.clamp(-48.0, 48.0);
+    // Personalization from LLM sub-category + tag affinity (0 until classified).
+    if (a.subcategory.isNotEmpty) {
+      h += (subAff[a.subcategory] ?? 0).clamp(0, 30) * 0.4;
+    }
+    for (final t in a.tags) {
+      h += (tagAff[t] ?? 0).clamp(0, 30) * 0.25;
+    }
+    return h.clamp(-60.0, 60.0);
   }
 
   DateTime? effective(NewsArticle a) =>
       a.publishedAt?.add(Duration(minutes: (boostHours(a) * 60).round()));
 
-  articles.sort((a, b) {
-    final ae = effective(a), be = effective(b);
-    if (ae == null && be == null) return 0;
-    if (ae == null) return 1;
-    if (be == null) return -1;
-    return be.compareTo(ae);
-  });
+  void rankSort() {
+    articles.sort((a, b) {
+      final ae = effective(a), be = effective(b);
+      if (ae == null && be == null) return 0;
+      if (ae == null) return 1;
+      if (be == null) return -1;
+      return be.compareTo(ae);
+    });
+  }
+
+  // First pass: rank by recency + taste + economy emphasis (sub-category/tag
+  // boosts are still zero here, since nothing is classified yet).
+  rankSort();
 
   // LLM sub-category enrichment (best-effort, cached server-side per URL). Only
   // the top slice actually shown is classified to bound cost; a slow first
@@ -125,6 +149,10 @@ final newsFeedProvider =
       }
     }
     ref.read(classifyStatusProvider.notifier).state = null;
+    // Second pass: now that the head is classified, re-rank so the user's
+    // favoured sub-categories/tags (and the economy sub-category emphasis)
+    // take effect.
+    rankSort();
   } catch (e) {
     ref.read(classifyStatusProvider.notifier).state = e.toString();
   }
