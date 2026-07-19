@@ -8,23 +8,25 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe article fetch (bot UA vs browser UA)
+      - name: Probe JSON-LD articleBody + jina reader
         run: |
-          BROWSER='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
-          BOT='NewsAppMaker/1.0 (+crawl-proxy)'
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
           for url in \
             "https://techcrunch.com/2026/07/19/can-an-apple-lawsuit-derail-openais-hardware-plans/" \
             "https://www.foxbusiness.com/retail/dollar-tree-shutter-75-stores-while-growing-overall-footprint" ; do
-            for tag in BOT BROWSER; do
-              ua="$BOT"; [ "$tag" = BROWSER ] && ua="$BROWSER"
-              code=$(curl -s -o /tmp/b.html -w '%{http_code}' -A "$ua" -H 'Accept: text/html' -H 'Accept-Language: en-US,en;q=0.9' --max-time 25 "$url" || echo ERR)
-              size=$(wc -c < /tmp/b.html)
-              art=$(grep -o '<article' /tmp/b.html | wc -l)
-              pc=$(grep -o '<p[ >]' /tmp/b.html | wc -l)
-              echo "[$tag] code=$code size=$size article=$art p=$pc  $url"
-            done
-            echo "----- BROWSER body head (600 chars) -----"
-            head -c 600 /tmp/b.html
+            echo "##### $url"
+            curl -s -A "$UA" --max-time 25 "$url" > /tmp/b.html
+            echo "ldjson_blocks=$(grep -o 'application/ld+json' /tmp/b.html | wc -l) articleBody_hits=$(grep -o 'articleBody' /tmp/b.html | wc -l)"
+            echo "--- articleBody snippet ---"
+            grep -oE '"articleBody" *: *"[^"]{0,300}' /tmp/b.html | head -c 400
+            echo ""
+            echo "--- og:description ---"
+            grep -oE '<meta[^>]+og:description[^>]*>' /tmp/b.html | head -c 400
+            echo ""
+            echo "--- jina reader r.jina.ai ---"
+            jcode=$(curl -s -o /tmp/j.txt -w '%{http_code}' -A "$UA" --max-time 40 "https://r.jina.ai/$url" || echo ERR)
+            echo "jina code=$jcode size=$(wc -c < /tmp/j.txt)"
+            head -c 700 /tmp/j.txt
             echo ""
             echo "==================================="
           done
