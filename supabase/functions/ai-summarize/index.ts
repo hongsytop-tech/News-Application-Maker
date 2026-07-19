@@ -30,7 +30,7 @@ const restHeaders = {
 
 async function getCached(url: string): Promise<string | null> {
   const r = await fetch(
-    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_summary_v2&url=eq.${encodeURIComponent(url)}&select=payload`,
+    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_summary_v3&url=eq.${encodeURIComponent(url)}&select=payload`,
     { headers: restHeaders },
   );
   if (!r.ok) return null;
@@ -43,7 +43,7 @@ async function setCached(url: string, summary: string) {
     method: 'POST',
     headers: { ...restHeaders, Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({
-      mode: 'ai_summary_v2',
+      mode: 'ai_summary_v3',
       url,
       payload: { summary },
       fetched_at: new Date().toISOString(),
@@ -65,13 +65,19 @@ async function claude(prompt: string): Promise<string> {
       model: 'claude-haiku-4-5',
       max_tokens: 900,
       system:
-        'You are a news editor for a Korean reader. Summarize the article in ' +
-        '6 to 8 informative bullet points covering the key facts, background ' +
-        'context, and why it matters. Each bullet should be a full, specific ' +
-        'sentence (not a fragment). Then add a final line starting with ' +
-        '"한줄평: " giving a one-sentence takeaway. Always respond in Korean ' +
-        '(한국어), regardless of the article\'s original language. Output only ' +
-        'the bullets (each prefixed with "• ") and the 한줄평 line.',
+        '너는 한국 독자를 위한 뉴스 에디터다. 아래 기사 텍스트를 한국어로 요약한다.\n' +
+        '원칙(반드시 지켜라):\n' +
+        '1. 기사에 명시된 사실만 쓴다. 추측, 일반론, 원문에 없는 배경·영향·전망을 ' +
+        '지어내지 마라. 불확실하면 넣지 마라.\n' +
+        '2. 핵심 수치·고유명사·기관·날짜/기간을 우선 포함하라. 단, 날짜·숫자는 원문에 ' +
+        '명시된 경우에만 쓰고, 없으면 임의로 만들지 마라.\n' +
+        '3. 불릿은 3~6개. 기사 분량에 맞춰 조절하고(짧은 단신은 3개), 서로 다른 정보를 ' +
+        '담아 중복하지 마라. 각 불릿은 완전한 문장.\n' +
+        '4. 마지막 줄에 "한줄평: "으로 시작하는 한 문장 총평을 붙여라. 과장·일반론 금지, ' +
+        '기사 내용에 근거할 것.\n' +
+        '5. 제공된 텍스트가 제목 수준으로 빈약하면 그 범위 안에서만 요약하고 없는 내용을 ' +
+        '채우지 마라.\n' +
+        '출력은 불릿(각 "• "로 시작)과 한줄평 줄만. 다른 설명·머리말 없이.',
       messages: [{ role: 'user', content: prompt }],
     }),
   });
