@@ -54,7 +54,7 @@ class ArticleDetailScreen extends ConsumerWidget {
     final bookmarked = ref.watch(isBookmarkedProvider(article.url));
     final fullArticle = ref.watch(articleContentProvider(article));
     final aiAvailable = ref.watch(aiServiceProvider).isAvailable;
-    final showTranslation = ref.watch(_showTranslationProvider(article.url));
+    final showSummary = ref.watch(_showSummaryProvider(article.url));
 
     // Translate foreign headlines to Korean (shares the list's cached call).
     final translate = (ref.read(aiServiceProvider).isAvailable &&
@@ -102,45 +102,46 @@ class ArticleDetailScreen extends ConsumerWidget {
             ),
           const SizedBox(height: 16),
 
-          // On-demand full-body Korean translation (replaces the old auto AI
-          // summary). Tap to translate; tap again to return to the original.
+          // On-demand AI summary: only fetched when the user taps the button
+          // (no automatic summarization on open).
           if (aiAvailable) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.tonalIcon(
                 icon: Icon(
-                    showTranslation ? Icons.article_outlined : Icons.translate),
-                label: Text(showTranslation ? '원문 보기' : '한국어로 번역'),
+                    showSummary ? Icons.expand_less : Icons.auto_awesome),
+                label: Text(showSummary ? 'AI 요약 숨기기' : 'AI 요약'),
                 onPressed: () => ref
-                    .read(_showTranslationProvider(article.url).notifier)
-                    .state = !showTranslation,
+                    .read(_showSummaryProvider(article.url).notifier)
+                    .state = !showSummary,
               ),
             ),
-            const SizedBox(height: 12),
+            if (showSummary) ...[
+              const SizedBox(height: 12),
+              _AiSummaryCard(article: article),
+            ],
+            const SizedBox(height: 16),
           ],
 
-          if (showTranslation)
-            _TranslatedBody(article: article)
-          else
-            fullArticle.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, __) => Text(
-                article.summary.isNotEmpty
-                    ? article.summary
-                    : 'Could not load the full article. Tap the link icon to open '
-                        'the original.',
-                style: theme.textTheme.bodyLarge,
-              ),
-              data: (loaded) => Text(
-                (loaded.content?.isNotEmpty ?? false)
-                    ? loaded.content!
-                    : loaded.summary,
-                style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-              ),
+          fullArticle.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator()),
             ),
+            error: (_, __) => Text(
+              article.summary.isNotEmpty
+                  ? article.summary
+                  : 'Could not load the full article. Tap the link icon to open '
+                      'the original.',
+              style: theme.textTheme.bodyLarge,
+            ),
+            data: (loaded) => Text(
+              (loaded.content?.isNotEmpty ?? false)
+                  ? loaded.content!
+                  : loaded.summary,
+              style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+            ),
+          ),
           const SizedBox(height: 24),
           Center(
             child: FilledButton.tonalIcon(
@@ -177,42 +178,58 @@ class _MetaLine extends StatelessWidget {
   }
 }
 
-/// Whether the article detail is currently showing the Korean translation
-/// (per article url) instead of the original body.
-final _showTranslationProvider =
+/// Whether the article detail is currently showing the AI summary (per article
+/// url). Off by default — the summary is only generated when the user asks.
+final _showSummaryProvider =
     StateProvider.autoDispose.family<bool, String>((ref, url) => false);
 
-/// The article body translated into Korean (fetched on demand, cached
-/// server-side by the ai-translate Edge Function so repeat views are free).
-class _TranslatedBody extends ConsumerWidget {
-  const _TranslatedBody({required this.article});
+/// AI summary card. Only mounted when the user taps the "AI 요약" button, so the
+/// (paid) summarize call runs on demand rather than automatically on open.
+/// Cached server-side by the ai-summarize Edge Function, so repeat views are
+/// free.
+class _AiSummaryCard extends ConsumerWidget {
+  const _AiSummaryCard({required this.article});
   final NewsArticle article;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final translation = ref.watch(articleBodyTranslationProvider(article));
-    return translation.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+    final summary = ref.watch(articleSummaryProvider(article));
+    return Card(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-                width: 16, height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 12),
-            Text('AI가 번역하는 중…'),
+            Row(
+              children: [
+                Icon(Icons.auto_awesome,
+                    size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('AI 요약', style: theme.textTheme.titleSmall),
+              ],
+            ),
+            const SizedBox(height: 8),
+            summary.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(children: [
+                  SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 12),
+                  Text('AI가 요약하는 중…'),
+                ]),
+              ),
+              error: (e, _) => Text(e is AiException ? e.message : e.toString()),
+              data: (text) => Text(
+                text,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+              ),
+            ),
           ],
         ),
-      ),
-      error: (e, _) => Text(
-        e is AiException ? e.message : e.toString(),
-        style: theme.textTheme.bodyLarge,
-      ),
-      data: (text) => Text(
-        text,
-        style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
       ),
     );
   }
