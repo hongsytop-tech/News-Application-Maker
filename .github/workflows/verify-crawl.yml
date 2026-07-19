@@ -1,0 +1,42 @@
+name: verify-crawl
+on:
+  push:
+    branches: [claude/intelligent-babbage-eah84q]
+    paths: ['.github/workflows/verify-crawl.yml']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe article fetch (bot UA vs browser UA)
+        run: |
+          BROWSER='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
+          BOT='NewsAppMaker/1.0 (+crawl-proxy)'
+          URLS="
+          https://techcrunch.com/2026/07/19/can-an-apple-lawsuit-derail-openais-hardware-plans/
+          https://www.foxbusiness.com/retail/dollar-tree-shutter-75-stores-while-growing-overall-footprint
+          "
+          probe() {
+            local ua="$1"; local url="$2"; local label="$3"
+            code=$(curl -s -o /tmp/body.html -w '%{http_code}' -A "$ua" \
+              -H 'Accept: text/html,application/xhtml+xml' -H 'Accept-Language: en-US,en;q=0.9' \
+              --max-time 25 "$url" || echo "ERR")
+            size=$(wc -c < /tmp/body.html 2>/dev/null || echo 0)
+            hasart=$(grep -c '<article' /tmp/body.html 2>/dev/null || echo 0)
+            # count <p> blocks with >40 chars of text (rough)
+            pcount=$(python3 -c "
+import re,sys
+h=open('/tmp/body.html',encoding='utf-8',errors='ignore').read()
+ps=re.findall(r'<p[^>]*>(.*?)</p>', h, re.S)
+n=sum(1 for p in ps if len(re.sub(r'<[^>]*>','',p).strip())>40)
+print(n)
+" 2>/dev/null || echo 0)
+            echo "[$label] code=$code size=$size <article>=$hasart p>40=$pcount  $url"
+          }
+          for u in $URLS; do
+            [ -z "$u" ] && continue
+            probe "$BOT" "$u" "BOT"
+            probe "$BROWSER" "$u" "BROWSER"
+            echo "----- first 800 chars of BROWSER body -----"
+            head -c 800 /tmp/body.html; echo; echo "==========="
+          done
