@@ -25,9 +25,16 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
+
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'NewsAppMaker/1.0 (+crawl-proxy)' },
+    headers: {
+      'User-Agent': BROWSER_UA,
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'en-US,en;q=0.9,ko;q=0.8',
+    },
   });
   if (!res.ok) throw new Error(`Upstream ${res.status} for ${url}`);
   return await res.text();
@@ -99,19 +106,126 @@ function parseFeed(xml: string) {
   return articles;
 }
 
+// --- Article body extraction (multi-tier) ---------------------------------
+
+// Pulls readable paragraphs out of an HTML fragment.
+function paragraphs(source: string): string {
+  return [...source.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((m) => stripHtml(m[1]))
+    .filter((p) => p.length > 40)
+    .join('\n\n');
+}
+
+// Tier 2: pick the block (<article> or the whole doc) with the most paragraph
+// text, rather than blindly taking the first <article> (often a related-story
+// widget).
 function extractReadable(html: string): string {
   const cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<nav[\s\S]*?<\/nav>/gi, '')
     .replace(/<header[\s\S]*?<\/header>/gi, '')
+    .replace(/<aside[\s\S]*?<\/aside>/gi, '')
     .replace(/<footer[\s\S]*?<\/footer>/gi, '');
-  const article = cleaned.match(/<article[\s\S]*?<\/article>/i);
-  const source = article ? article[0] : cleaned;
-  return [...source.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
-    .map((m) => stripHtml(m[1]))
-    .filter((p) => p.length > 40)
-    .join('\n\n');
+  let best = '';
+  for (const m of cleaned.matchAll(/<article[\s\S]*?<\/article>/gi)) {
+    const p = paragraphs(m[0]);
+    if (p.length > best.length) best = p;
+  }
+  const whole = paragraphs(cleaned);
+  return whole.length > best.length ? whole : best;
+}
+
+// Tier 1: JSON-LD `articleBody` (schema.org NewsArticle/Article). The most
+// reliable source when present — it's the publisher's own full body text.
+// deno-lint-ignore no-explicit-any
+function findArticleBody(node: any): string {
+  if (!node) return '';
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const b = findArticleBody(n);
+      if (b) return b;
+    }
+    return '';
+  }
+  if (typeof node === 'object') {
+    if (typeof node.articleBody === 'string' && node.articleBody.trim()) {
+      return node.articleBody.trim();
+    }
+    if (node['@graph']) return findArticleBody(node['@graph']);
+  }
+  return '';
+}
+
+function extractJsonLdBody(html: string): string {
+  const blocks = html.matchAll(
+    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  );
+  for (const m of blocks) {
+    try {
+      const body = findArticleBody(JSON.parse(m[1].trim()));
+      if (body && body.length > 200) return decodeEntities(body);
+    } catch (_) {
+      // malformed JSON-LD block — skip
+    }
+  }
+  return '';
+}
+
+function ogDescription(html: string): string {
+  const m = html.match(
+    /<meta[^>]+property=["']og:description["'][^>]*content=["']([^"']+)["']/i,
+  ) || html.match(
+    /<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:description["']/i,
+  );
+  return m ? decodeEntities(m[1]).trim() : '';
+}
+
+// Tier 3: reader proxy for JS-gated pages (e.g. Cloudflare-Turnstile sites)
+// whose body is not in the initial HTML. Jina renders the page and returns
+// clean text; we strip its header preamble and obvious nav-link lines.
+async function fetchReader(url: string): Promise<string> {
+  try {
+    const r = await fetch(`https://r.jina.ai/${url}`, {
+      headers: { 'User-Agent': BROWSER_UA, 'X-Return-Format': 'markdown' },
+    });
+    if (!r.ok) return '';
+    let t = await r.text();
+    const marker = t.indexOf('Markdown Content:');
+    if (marker !== -1) t = t.slice(marker + 'Markdown Content:'.length);
+    return t
+      .split('\n')
+      .map((l) => l.trim())
+      // drop pure nav/link lines and image lines, keep prose.
+      .filter((l) =>
+        l.length > 40 &&
+        !/^[*#>|-]/.test(l) &&
+        !/^!?\[[^\]]*\]\([^)]*\)$/.test(l))
+      .join('\n\n')
+      .trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+// Runs the tiers in order and returns the first result with enough substance.
+async function extractArticle(url: string): Promise<string> {
+  let html = '';
+  try {
+    html = await fetchText(url);
+  } catch (_) {
+    // Upstream blocked us outright — go straight to the reader proxy.
+    return await fetchReader(url);
+  }
+  const jsonLd = extractJsonLdBody(html);
+  if (jsonLd.length >= 200) return jsonLd;
+  const readable = extractReadable(html);
+  if (readable.length >= 200) return readable;
+  const reader = await fetchReader(url);
+  if (reader.length >= 200) return reader;
+  // Last resort: the longest of whatever little we have.
+  return [jsonLd, readable, reader, ogDescription(html)]
+    .sort((a, b) => b.length - a.length)[0] ?? '';
 }
 
 Deno.serve(async (req) => {
@@ -127,7 +241,7 @@ Deno.serve(async (req) => {
       return json({ articles: parseFeed(await fetchText(url)) });
     }
     if (mode === 'article') {
-      return json({ url, content: extractReadable(await fetchText(url)) });
+      return json({ url, content: await extractArticle(url) });
     }
     return json({ error: 'Invalid "mode"' }, 400);
   } catch (err) {
