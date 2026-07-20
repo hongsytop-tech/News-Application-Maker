@@ -217,63 +217,96 @@ function isGoogleNews(url: string): boolean {
   }
 }
 
-// Google News RSS item links are news.google.com/rss/articles/<token> URLs
-// that redirect (via JS) to the publisher. The base64url token's decoded bytes
-// usually contain the real article URL as a plain substring — extract it so we
-// can fetch the publisher directly (no reader needed for SSR sites).
-function resolveGoogleNews(url: string): string {
-  if (!isGoogleNews(url)) return url;
-  const m = url.match(/\/articles\/([^/?]+)/);
-  if (!m) return url;
+// Google News RSS item links (news.google.com/rss/articles/<token>) don't
+// contain the publisher URL in a decodable form anymore. Resolve them the way
+// Google's own page does: read a signature + timestamp from the article page,
+// then POST them to the batchexecute endpoint to get the real article URL.
+async function resolveGoogleNewsUrl(url: string): Promise<string> {
   try {
-    let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
-    while (b64.length % 4) b64 += '=';
-    const bytes = atob(b64);
-    const um = bytes.match(/https?:\/\/[^\s"'\\<>]+/);
-    if (um && um[0].length > 12) return um[0];
-  } catch (_) {
-    // not decodable — fall through to the original url
+    const idM = url.match(/\/articles\/([^/?]+)/);
+    if (!idM) return '';
+    const gnId = idM[1];
+    const html = await fetchText(url);
+    const sg = html.match(/data-n-a-sg="([^"]+)"/)?.[1];
+    const ts = html.match(/data-n-a-ts="([^"]+)"/)?.[1];
+    if (!sg || !ts) {
+      console.log(`[crawl] google page missing sg/ts (len=${html.length})`);
+      return '';
+    }
+    const inner =
+      `["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,null,` +
+      `null,null,null,null,0,1],"X","X",1,[1,1,1],1,1,null,0,0,null,0],` +
+      `"${gnId}",${ts},"${sg}"]`;
+    const reqArr = [[["Fbv4je", inner]]];
+    const body = 'f.req=' + encodeURIComponent(JSON.stringify(reqArr));
+    const r = await fetch(
+      'https://news.google.com/_/DotsSplashUi/data/batchexecute',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'User-Agent': BROWSER_UA,
+        },
+        body,
+      },
+    );
+    console.log(`[crawl] batchexecute status=${r.status}`);
+    if (!r.ok) return '';
+    const text = await r.text();
+    const m = text.match(
+      /https?:\/\/(?!news\.google\.com|www\.google\.com|consent\.google\.com)[^"\\ ]+/,
+    );
+    if (!m) return '';
+    return m[0]
+      .replace(/\\u003d/g, '=')
+      .replace(/\\u0026/g, '&')
+      .replace(/\\\//g, '/');
+  } catch (e) {
+    console.log(`[crawl] resolve error ${e}`);
+    return '';
   }
-  return url;
 }
 
-// Runs the tiers in order and returns the first result with enough substance.
-// Logs each tier so runtime behaviour is visible in the function's Logs tab.
-async function extractArticle(url: string): Promise<string> {
-  const real = resolveGoogleNews(url);
-  console.log(`[crawl] url=${url}`);
-  if (real !== url) console.log(`[crawl] resolved google -> ${real}`);
-
+// Fetch + multi-tier extraction for a direct publisher URL.
+async function extractFromUrl(url: string): Promise<string> {
   let html = '';
   try {
-    html = await fetchText(real);
-    console.log(`[crawl] direct html len=${html.length}`);
+    html = await fetchText(url);
+    console.log(`[crawl] fetch ${url} html len=${html.length}`);
   } catch (e) {
-    console.log(`[crawl] direct fetch failed: ${e} — trying reader`);
-    const r = await fetchReader(real);
-    console.log(`[crawl] reader(after fail) len=${r.length}`);
-    if (r.length >= 40) return r;
-    // If the resolved url failed, try the reader on the original google url too.
-    return real === url ? r : await fetchReader(url);
+    console.log(`[crawl] fetch failed ${url}: ${e} — trying reader`);
+    return await fetchReader(url);
   }
-
   const jsonLd = extractJsonLdBody(html);
-  console.log(`[crawl] jsonLd len=${jsonLd.length}`);
-  if (jsonLd.length >= 200) return jsonLd;
-
+  if (jsonLd.length >= 200) {
+    console.log(`[crawl] jsonLd len=${jsonLd.length}`);
+    return jsonLd;
+  }
   const readable = extractReadable(html);
-  console.log(`[crawl] readable len=${readable.length}`);
-  if (readable.length >= 200) return readable;
-
-  const reader = await fetchReader(real);
-  console.log(`[crawl] reader len=${reader.length}`);
-  if (reader.length >= 200) return reader;
-
-  // Last resort: the longest of whatever little we have.
+  if (readable.length >= 200) {
+    console.log(`[crawl] readable len=${readable.length}`);
+    return readable;
+  }
+  const reader = await fetchReader(url);
+  if (reader.length >= 200) {
+    console.log(`[crawl] reader len=${reader.length}`);
+    return reader;
+  }
   const best = [jsonLd, readable, reader, ogDescription(html)]
     .sort((a, b) => b.length - a.length)[0] ?? '';
   console.log(`[crawl] fallback best len=${best.length}`);
   return best;
+}
+
+async function extractArticle(url: string): Promise<string> {
+  console.log(`[crawl] url=${url}`);
+  if (isGoogleNews(url)) {
+    const real = await resolveGoogleNewsUrl(url);
+    console.log(`[crawl] resolved -> ${real || '(failed)'}`);
+    if (real) return await extractFromUrl(real);
+    return ''; // couldn't resolve the Google redirect — nothing to fetch
+  }
+  return await extractFromUrl(url);
 }
 
 Deno.serve(async (req) => {
