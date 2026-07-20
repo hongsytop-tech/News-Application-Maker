@@ -134,12 +134,17 @@ class ArticleDetailScreen extends ConsumerWidget {
                         'the original.',
                 style: theme.textTheme.bodyLarge,
               ),
-              data: (loaded) => Text(
-                (loaded.content?.isNotEmpty ?? false)
-                    ? loaded.content!
-                    : loaded.summary,
-                style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-              ),
+              data: (loaded) => (loaded.content?.trim().isNotEmpty ?? false)
+                  ? Text(
+                      loaded.content!,
+                      style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+                    )
+                  : Text(
+                      '본문을 불러올 수 없습니다. 유료 구독(페이월) 기사이거나 사이트가 외부 '
+                      '접근을 제한한 경우일 수 있습니다. 아래 "원문 보기"로 확인하세요.',
+                      style: theme.textTheme.bodyLarge
+                          ?.copyWith(color: theme.colorScheme.outline),
+                    ),
             ),
           const SizedBox(height: 24),
           Center(

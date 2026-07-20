@@ -274,8 +274,12 @@ async function extractFromUrl(url: string): Promise<string> {
     html = await fetchText(url);
     console.log(`[crawl] fetch ${url} html len=${html.length}`);
   } catch (e) {
+    // Upstream blocked us (e.g. 401/403 paywall). Try the reader; if it only
+    // yields chrome, return nothing so the app shows a clear "unavailable"
+    // message rather than a meaningless snippet.
     console.log(`[crawl] fetch failed ${url}: ${e} — trying reader`);
-    return await fetchReader(url);
+    const r = await fetchReader(url);
+    return r.length >= 200 ? r : '';
   }
   const jsonLd = extractJsonLdBody(html);
   if (jsonLd.length >= 200) {
@@ -295,7 +299,8 @@ async function extractFromUrl(url: string): Promise<string> {
   const best = [jsonLd, readable, reader, ogDescription(html)]
     .sort((a, b) => b.length - a.length)[0] ?? '';
   console.log(`[crawl] fallback best len=${best.length}`);
-  return best;
+  // Below this, it's paywall chrome / boilerplate — treat as unavailable.
+  return best.length >= 150 ? best : '';
 }
 
 async function extractArticle(url: string): Promise<string> {
