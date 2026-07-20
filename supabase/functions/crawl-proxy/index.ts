@@ -208,8 +208,24 @@ async function fetchReader(url: string): Promise<string> {
   }
 }
 
+function isGoogleNews(url: string): boolean {
+  try {
+    return /(^|\.)news\.google\.com$/i.test(new URL(url).hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
 // Runs the tiers in order and returns the first result with enough substance.
 async function extractArticle(url: string): Promise<string> {
+  // Google News RSS links are redirect/interstitial URLs — a direct fetch
+  // returns Google's shell, not the article. The reader proxy renders and
+  // follows the redirect to the real publisher, so use it first for those.
+  if (isGoogleNews(url)) {
+    const viaReader = await fetchReader(url);
+    if (viaReader.length >= 200) return viaReader;
+  }
+
   let html = '';
   try {
     html = await fetchText(url);
