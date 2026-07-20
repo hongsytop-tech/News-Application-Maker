@@ -189,6 +189,7 @@ async function fetchReader(url: string): Promise<string> {
     const r = await fetch(`https://r.jina.ai/${url}`, {
       headers: { 'User-Agent': BROWSER_UA, 'X-Return-Format': 'markdown' },
     });
+    console.log(`[crawl] jina status=${r.status} for ${url}`);
     if (!r.ok) return '';
     let t = await r.text();
     const marker = t.indexOf('Markdown Content:');
@@ -216,32 +217,63 @@ function isGoogleNews(url: string): boolean {
   }
 }
 
-// Runs the tiers in order and returns the first result with enough substance.
-async function extractArticle(url: string): Promise<string> {
-  // Google News RSS links are redirect/interstitial URLs — a direct fetch
-  // returns Google's shell, not the article. The reader proxy renders and
-  // follows the redirect to the real publisher, so use it first for those.
-  if (isGoogleNews(url)) {
-    const viaReader = await fetchReader(url);
-    if (viaReader.length >= 200) return viaReader;
+// Google News RSS item links are news.google.com/rss/articles/<token> URLs
+// that redirect (via JS) to the publisher. The base64url token's decoded bytes
+// usually contain the real article URL as a plain substring — extract it so we
+// can fetch the publisher directly (no reader needed for SSR sites).
+function resolveGoogleNews(url: string): string {
+  if (!isGoogleNews(url)) return url;
+  const m = url.match(/\/articles\/([^/?]+)/);
+  if (!m) return url;
+  try {
+    let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bytes = atob(b64);
+    const um = bytes.match(/https?:\/\/[^\s"'\\<>]+/);
+    if (um && um[0].length > 12) return um[0];
+  } catch (_) {
+    // not decodable — fall through to the original url
   }
+  return url;
+}
+
+// Runs the tiers in order and returns the first result with enough substance.
+// Logs each tier so runtime behaviour is visible in the function's Logs tab.
+async function extractArticle(url: string): Promise<string> {
+  const real = resolveGoogleNews(url);
+  console.log(`[crawl] url=${url}`);
+  if (real !== url) console.log(`[crawl] resolved google -> ${real}`);
 
   let html = '';
   try {
-    html = await fetchText(url);
-  } catch (_) {
-    // Upstream blocked us outright — go straight to the reader proxy.
-    return await fetchReader(url);
+    html = await fetchText(real);
+    console.log(`[crawl] direct html len=${html.length}`);
+  } catch (e) {
+    console.log(`[crawl] direct fetch failed: ${e} — trying reader`);
+    const r = await fetchReader(real);
+    console.log(`[crawl] reader(after fail) len=${r.length}`);
+    if (r.length >= 40) return r;
+    // If the resolved url failed, try the reader on the original google url too.
+    return real === url ? r : await fetchReader(url);
   }
+
   const jsonLd = extractJsonLdBody(html);
+  console.log(`[crawl] jsonLd len=${jsonLd.length}`);
   if (jsonLd.length >= 200) return jsonLd;
+
   const readable = extractReadable(html);
+  console.log(`[crawl] readable len=${readable.length}`);
   if (readable.length >= 200) return readable;
-  const reader = await fetchReader(url);
+
+  const reader = await fetchReader(real);
+  console.log(`[crawl] reader len=${reader.length}`);
   if (reader.length >= 200) return reader;
+
   // Last resort: the longest of whatever little we have.
-  return [jsonLd, readable, reader, ogDescription(html)]
+  const best = [jsonLd, readable, reader, ogDescription(html)]
     .sort((a, b) => b.length - a.length)[0] ?? '';
+  console.log(`[crawl] fallback best len=${best.length}`);
+  return best;
 }
 
 Deno.serve(async (req) => {
