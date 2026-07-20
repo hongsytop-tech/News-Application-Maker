@@ -74,7 +74,7 @@ async function setCached(url: string, value: Translation) {
 
 async function getBodyCached(url: string): Promise<string | null> {
   const r = await fetch(
-    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_translate_body_v1&url=eq.${encodeURIComponent(url)}&select=payload`,
+    `${SUPA}/rest/v1/crawl_cache?mode=eq.ai_translate_body_v2&url=eq.${encodeURIComponent(url)}&select=payload`,
     { headers: restHeaders },
   );
   if (!r.ok) return null;
@@ -88,7 +88,7 @@ async function setBodyCached(url: string, content: string) {
     method: 'POST',
     headers: { ...restHeaders, Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({
-      mode: 'ai_translate_body_v1',
+      mode: 'ai_translate_body_v2',
       url,
       payload: { content },
       fetched_at: new Date().toISOString(),
