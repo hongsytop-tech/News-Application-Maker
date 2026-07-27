@@ -341,7 +341,7 @@ class _InlineSummary extends ConsumerWidget {
         error: (e, _) =>
             Text(e is AiException ? e.message : e.toString()),
         data: (text) =>
-            Text(text, style: theme.textTheme.bodyMedium),
+            SelectableText(text, style: theme.textTheme.bodyMedium),
       ),
     );
   }

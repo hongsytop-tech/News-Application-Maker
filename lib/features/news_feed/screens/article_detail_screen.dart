@@ -135,7 +135,7 @@ class ArticleDetailScreen extends ConsumerWidget {
                 style: theme.textTheme.bodyLarge,
               ),
               data: (loaded) => (loaded.content?.trim().isNotEmpty ?? false)
-                  ? Text(
+                  ? SelectableText(
                       loaded.content!,
                       style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
                     )
@@ -215,7 +215,7 @@ class _TranslatedBody extends ConsumerWidget {
         e is AiException ? e.message : e.toString(),
         style: theme.textTheme.bodyLarge,
       ),
-      data: (text) => Text(
+      data: (text) => SelectableText(
         text,
         style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
       ),
