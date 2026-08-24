@@ -268,8 +268,27 @@ class _HoldingTile extends StatelessWidget {
 }
 
 const _periodLabels = <String, String>{
-  'day': '일봉', 'week': '주봉', 'month': '월봉', 'year': '년',
+  'day': '일봉',
+  'week': '주봉',
+  'month': '월봉',
+  'year': '1년',
+  'year3': '3년',
+  'year10': '10년',
 };
+const _periodOrder = ['day', 'week', 'month', 'year', 'year3', 'year10'];
+
+/// Naver only returns the 1-year (`area/year`) chart in imageCharts; the 3- and
+/// 10-year charts live at the same URL with `year` → `year3`/`year10`. Derive
+/// them client-side so we don't need another backend round-trip.
+Map<String, String> _withLongRanges(Map<String, String> charts) {
+  final out = Map<String, String>.from(charts);
+  final y = charts['year'];
+  if (y != null && y.contains('/area/year/')) {
+    out.putIfAbsent('year3', () => y.replaceFirst('/area/year/', '/area/year3/'));
+    out.putIfAbsent('year10', () => y.replaceFirst('/area/year/', '/area/year10/'));
+  }
+  return out;
+}
 
 /// Opens a bottom sheet with the Naver chart image for [name]'s [quote].
 void _showChartSheet(BuildContext context, String name, StockQuote? quote) {
@@ -307,7 +326,7 @@ class _ChartSheetState extends State<_ChartSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final q = widget.quote;
-    final charts = q?.charts ?? const {};
+    final charts = _withLongRanges(q?.charts ?? const {});
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: Column(
@@ -334,7 +353,7 @@ class _ChartSheetState extends State<_ChartSheet> {
             Wrap(
               spacing: 8,
               children: [
-                for (final k in const ['day', 'week', 'month', 'year'])
+                for (final k in _periodOrder)
                   if (charts.containsKey(k))
                     ChoiceChip(
                       label: Text(_periodLabels[k] ?? k),
