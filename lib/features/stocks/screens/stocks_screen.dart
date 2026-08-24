@@ -374,6 +374,10 @@ class _ChartSheetState extends State<_ChartSheet> {
                   aspectRatio: 4 / 3,
                   child: Image.network(
                     charts[_period]!,
+                    // Key by URL so switching periods recreates the widget; the
+                    // web <img> element otherwise gets reused and keeps the old
+                    // src (chart wouldn't change back).
+                    key: ValueKey(charts[_period]),
                     fit: BoxFit.contain,
                     // Load via an HTML <img> on web so the cross-origin Naver
                     // chart CDN (no CORS headers) displays under CanvasKit.
