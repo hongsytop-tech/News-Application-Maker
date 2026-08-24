@@ -188,7 +188,10 @@ class _IndexCard extends StatelessWidget {
     final theme = Theme.of(context);
     final q = quote;
     final color = q.isUp ? Colors.red : Colors.blue;
-    return Container(
+    return InkWell(
+      onTap: () => _showChartSheet(context, q.name, q),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
@@ -211,6 +214,7 @@ class _IndexCard extends StatelessWidget {
             style: theme.textTheme.bodySmall?.copyWith(color: color),
           ),
         ],
+      ),
       ),
     );
   }
@@ -235,11 +239,12 @@ class _HoldingTile extends StatelessWidget {
     final theme = Theme.of(context);
     final q = quote;
     return ListTile(
+      onTap: () => _showChartSheet(context, holding.name, q),
       title: Text(holding.name,
           maxLines: 1, overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(
-        '${holding.isDomestic ? '국내' : '해외'} · ${holding.code}',
+        '${holding.isDomestic ? '국내' : '해외'} · ${holding.code} · 차트 보기',
         style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
       ),
       trailing: q == null
@@ -258,6 +263,120 @@ class _HoldingTile extends StatelessWidget {
                 ),
               ],
             ),
+    );
+  }
+}
+
+const _periodLabels = <String, String>{
+  'day': '일봉', 'week': '주봉', 'month': '월봉', 'year': '년',
+};
+
+/// Opens a bottom sheet with the Naver chart image for [name]'s [quote].
+void _showChartSheet(BuildContext context, String name, StockQuote? quote) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => _ChartSheet(name: name, quote: quote),
+  );
+}
+
+class _ChartSheet extends StatefulWidget {
+  const _ChartSheet({required this.name, required this.quote});
+
+  final String name;
+  final StockQuote? quote;
+
+  @override
+  State<_ChartSheet> createState() => _ChartSheetState();
+}
+
+class _ChartSheetState extends State<_ChartSheet> {
+  late String _period;
+
+  @override
+  void initState() {
+    super.initState();
+    final charts = widget.quote?.charts ?? const {};
+    _period = charts.containsKey('day')
+        ? 'day'
+        : (charts.keys.isNotEmpty ? charts.keys.first : 'day');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final q = widget.quote;
+    final charts = q?.charts ?? const {};
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.name, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 12),
+          if (charts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text(
+                  q == null
+                      ? '업데이트를 눌러 시세를 불러오면 차트를 볼 수 있습니다.'
+                      : '이 종목의 차트를 불러올 수 없습니다.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.outline),
+                ),
+              ),
+            )
+          else ...[
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final k in const ['day', 'week', 'month', 'year'])
+                  if (charts.containsKey(k))
+                    ChoiceChip(
+                      label: Text(_periodLabels[k] ?? k),
+                      selected: _period == k,
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() => _period = k),
+                    ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              // Naver chart images have a white background — keep it white so
+              // they render correctly in dark mode too.
+              child: Container(
+                color: Colors.white,
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: Image.network(
+                    charts[_period]!,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (c, child, progress) => progress == null
+                        ? child
+                        : const Center(child: CircularProgressIndicator()),
+                    errorBuilder: (c, e, s) => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('차트를 불러오지 못했습니다.',
+                            style: TextStyle(color: Colors.black54)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('네이버 증권 차트 · 업데이트 시점 기준',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.outline)),
+          ],
+        ],
+      ),
     );
   }
 }

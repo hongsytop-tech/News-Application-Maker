@@ -55,6 +55,25 @@ async function search(query: string): Promise<any[]> {
   })).filter((x: any) => x.code && x.name);
 }
 
+// Picks a period -> chart-image-url map from Naver's `imageCharts` object
+// (works for domestic, world and index basic responses).
+// deno-lint-ignore no-explicit-any
+function pickCharts(ic: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!ic || typeof ic !== 'object') return out;
+  const pairs: [string, string][] = [
+    ['day', 'candleDay'],
+    ['week', 'candleWeek'],
+    ['month', 'candleMonth'],
+    ['year', 'areaYear'],
+  ];
+  for (const [k, src] of pairs) {
+    if (typeof ic[src] === 'string' && ic[src]) out[k] = ic[src];
+  }
+  if (!out.day && typeof ic.day === 'string' && ic.day) out.day = ic.day;
+  return out;
+}
+
 // deno-lint-ignore no-explicit-any
 async function quoteOne(item: any): Promise<any | null> {
   try {
@@ -77,6 +96,7 @@ async function quoteOne(item: any): Promise<any | null> {
       change: signed(d.compareToPreviousClosePrice, code),
       change_percent: signed(d.fluctuationsRatio, code),
       currency: domestic ? 'KRW' : 'USD',
+      charts: pickCharts(d.imageCharts),
     };
   } catch (_) {
     return null;
@@ -104,6 +124,7 @@ async function indexQuote(code: string, name: string): Promise<any | null> {
       change: signed(d.compareToPreviousClosePrice, dc),
       change_percent: signed(d.fluctuationsRatio, dc),
       currency: '',
+      charts: pickCharts(d.imageCharts),
     };
   } catch (_) {
     return null;

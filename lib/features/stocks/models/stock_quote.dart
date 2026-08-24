@@ -8,6 +8,7 @@ class StockQuote {
     required this.change,
     required this.changePercent,
     required this.currency,
+    this.charts = const {},
   });
 
   final String code;
@@ -17,6 +18,9 @@ class StockQuote {
   final double change;
   final double changePercent;
   final String currency;
+
+  /// Naver chart image URLs keyed by period: 'day' | 'week' | 'month' | 'year'.
+  final Map<String, String> charts;
 
   bool get isUp => change >= 0;
   bool get isDomestic => market != 'world';
@@ -29,6 +33,10 @@ class StockQuote {
         change: (j['change'] as num?)?.toDouble() ?? 0,
         changePercent: (j['change_percent'] as num?)?.toDouble() ?? 0,
         currency: (j['currency'] ?? 'KRW').toString(),
+        charts: {
+          for (final e in ((j['charts'] as Map?) ?? const {}).entries)
+            e.key.toString(): e.value.toString(),
+        },
       );
 
   Map<String, dynamic> toJson() => {
@@ -39,5 +47,6 @@ class StockQuote {
         'change': change,
         'change_percent': changePercent,
         'currency': currency,
+        'charts': charts,
       };
 }
