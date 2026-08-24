@@ -87,6 +87,10 @@ async function quoteOne(item: any): Promise<any | null> {
     const price = num(d.closePrice);
     if (!isFinite(price)) return null;
     const code = String(d?.compareToPreviousPrice?.code ?? '3');
+    const charts = pickCharts(d.imageCharts);
+    console.log(
+      `[quote] ${item.code} hasImageCharts=${!!d.imageCharts} charts=${Object.keys(charts).length}`,
+    );
     return {
       code: String(item.code),
       reuters_code: String(item.reutersCode ?? item.code),
@@ -96,7 +100,7 @@ async function quoteOne(item: any): Promise<any | null> {
       change: signed(d.compareToPreviousClosePrice, code),
       change_percent: signed(d.fluctuationsRatio, code),
       currency: domestic ? 'KRW' : 'USD',
-      charts: pickCharts(d.imageCharts),
+      charts,
     };
   } catch (_) {
     return null;
