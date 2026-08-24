@@ -356,6 +356,9 @@ class _ChartSheetState extends State<_ChartSheet> {
                   child: Image.network(
                     charts[_period]!,
                     fit: BoxFit.contain,
+                    // Load via an HTML <img> on web so the cross-origin Naver
+                    // chart CDN (no CORS headers) displays under CanvasKit.
+                    webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
                     loadingBuilder: (c, child, progress) => progress == null
                         ? child
                         : const Center(child: CircularProgressIndicator()),
