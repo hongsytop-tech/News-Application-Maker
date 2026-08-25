@@ -107,16 +107,14 @@ async function quoteOne(item: any): Promise<any | null> {
   }
 }
 
-// Current KOSPI/KOSDAQ index value + change.
-// Uses m.stock.naver.com (same host as quoteOne, which is reachable from the
-// Edge runtime) — polling.finance.naver.com is blocked from Supabase's egress.
+// Index value + change from a Naver `basic` endpoint. Domestic (KOSPI/KOSDAQ)
+// use m.stock.naver.com/api/index/{code}; world indices (S&P500 .INX,
+// NASDAQ .IXIC) use api.stock.naver.com/index/{reutersCode}. Both share the
+// same response schema and include imageCharts.
 // deno-lint-ignore no-explicit-any
-async function indexQuote(code: string, name: string): Promise<any | null> {
+async function indexQuote(url: string, code: string, name: string): Promise<any | null> {
   try {
-    const r = await fetch(
-      `https://m.stock.naver.com/api/index/${code}/basic`,
-      { headers: HDRS },
-    );
+    const r = await fetch(url, { headers: HDRS });
     if (!r.ok) return null;
     const d = await r.json();
     const price = num(d.closePrice);
@@ -135,6 +133,13 @@ async function indexQuote(code: string, name: string): Promise<any | null> {
   }
 }
 
+const INDEX_SOURCES: [string, string, string][] = [
+  ['https://m.stock.naver.com/api/index/KOSPI/basic', 'KOSPI', '코스피'],
+  ['https://m.stock.naver.com/api/index/KOSDAQ/basic', 'KOSDAQ', '코스닥'],
+  ['https://api.stock.naver.com/index/.INX/basic', '.INX', 'S&P 500'],
+  ['https://api.stock.naver.com/index/.IXIC/basic', '.IXIC', '나스닥'],
+];
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -149,7 +154,7 @@ Deno.serve(async (req) => {
       const items = Array.isArray(body.items) ? body.items.slice(0, 50) : [];
       const [quotes, indices] = await Promise.all([
         Promise.all(items.map(quoteOne)).then((a) => a.filter((x) => x !== null)),
-        Promise.all([indexQuote('KOSPI', '코스피'), indexQuote('KOSDAQ', '코스닥')])
+        Promise.all(INDEX_SOURCES.map(([u, c, n]) => indexQuote(u, c, n)))
           .then((a) => a.filter((x) => x !== null)),
       ]);
       return json({ quotes, indices });

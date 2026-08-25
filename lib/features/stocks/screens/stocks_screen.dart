@@ -164,13 +164,24 @@ class _IndexBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Two per row (코스피·코스닥 / S&P500·나스닥), stays readable as more
+    // indices are added.
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: Row(
+      child: Column(
         children: [
-          for (var i = 0; i < indices.length; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            Expanded(child: _IndexCard(quote: indices[i])),
+          for (var i = 0; i < indices.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _IndexCard(quote: indices[i])),
+                const SizedBox(width: 8),
+                if (i + 1 < indices.length)
+                  Expanded(child: _IndexCard(quote: indices[i + 1]))
+                else
+                  const Expanded(child: SizedBox()),
+              ],
+            ),
           ],
         ],
       ),
